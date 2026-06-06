@@ -2,6 +2,7 @@
 
 # 🎓 FluentTech — AI English Learning Agent
 ### *A personalized English coaching system built for Saudi tech learners*
+</div>
 ---
 
 ## 📌 Overview
@@ -241,8 +242,8 @@ edulingo/
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/your-org/edulingo.git
-cd edulingo
+git clone https://github.com/Sarahalo204/FluentTech.git
+cd FluentTech
 ```
 
 ### 2. Configure environment
