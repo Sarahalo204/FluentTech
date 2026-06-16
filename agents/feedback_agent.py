@@ -33,32 +33,7 @@ from tools.progress_tool import save_feedback_result
 
 # ─── إعداد الـ RAG ──────────────────────────────────────────────────────────
 
-def get_rag_retriever():
-    """
-    يُنشئ Retriever يبحث في الـ ChromaDB.
-
-    لماذا BAAI/bge-small-en-v1.5 للـ Embeddings؟
-    - مجاني ويشتغل locally
-    - رقم 1 في MTEB Leaderboard للـ Small Models
-    - سريع ومناسب لحجم Knowledge Base هذا المشروع
-    """
-    try:
-        embeddings = HuggingFaceEmbeddings(
-            model_name="BAAI/bge-small-en-v1.5",
-            model_kwargs={"device": "cpu"},
-        )
-
-        chroma_client = chromadb.PersistentClient(
-            path=os.getenv("CHROMA_PATH", "./rag/chroma_store")
-        )
-
-        collection = chroma_client.get_collection("edulingo_knowledge")
-        return collection, embeddings
-
-    except Exception as e:
-        print(f"RAG not available: {e}")
-        return None, None
-
+from rag.retriever import retrieve
 
 def retrieve_context(query: str, n_results: int = 3) -> str:
     """
@@ -68,35 +43,22 @@ def retrieve_context(query: str, n_results: int = 3) -> str:
         query: ما يريد الـ Agent البحث عنه
         n_results: عدد النتائج المطلوبة
     """
-    collection, embeddings = get_rag_retriever()
-
-    if not collection or not embeddings:
-        return "Grammar reference not available. Using general knowledge."
-
     try:
-        query_embedding = embeddings.embed_query(query)
-
-        results = collection.query(
-            query_embeddings=[query_embedding],
-            n_results=n_results,
-            include=["documents", "metadatas"]
-        )
-
-        documents = results.get("documents", [[]])[0]
-        metadatas = results.get("metadatas", [[]])[0]
-
-        if not documents:
+        results = retrieve(query, top_k=n_results)
+        
+        if not results:
             return "No relevant grammar rules found."
 
         context_parts = []
-        for doc, meta in zip(documents, metadatas):
-            source = meta.get("source", "Knowledge Base")
-            context_parts.append(f"[{source}]\n{doc}")
+        for res in results:
+            source = res.get("source_file", "Knowledge Base")
+            context_parts.append(f"[{source}]\n{res['content']}")
 
         return "\n\n---\n\n".join(context_parts)
 
     except Exception as e:
-        return f"RAG retrieval error: {str(e)}"
+        print(f"RAG not available: {e}")
+        return "Grammar reference not available. Using general knowledge."
 
 
 # ─── Built-in Grammar Rules (Fallback عند فشل RAG) ─────────────────────────

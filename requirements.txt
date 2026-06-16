@@ -1,0 +1,66 @@
+# ============================================================
+# EduLingo — English Learning Agent
+# requirements.txt (UPDATED & FIXED)
+# ============================================================
+
+# ─── LangChain & LangGraph (Agent Framework) ────────────────
+langgraph==0.2.28
+langchain==0.3.7
+langchain-core>=0.3.17
+langchain-community==0.3.7
+langchain-huggingface==0.1.2
+
+
+# ─── Hugging Face & Deep Learning ───────────────────────────
+huggingface-hub==0.26.2
+transformers==4.46.3
+sentence-transformers==3.3.1      # للـ BAAI/bge-small-en-v1.5 Embeddings
+torch==2.5.1                      # مطلوب لـ sentence-transformers
+torchvision==0.20.1               # 🛑 ناقص ومهم جداً لمنع خطأ الـ ModuleNotFoundError
+
+# ─── Optional LLM Providers (للربط مع سحابة خارجية لو رغبتِ) ───
+langchain-openai==0.2.5         # فكي الهاش (#) لو بتستخدمون جيبتي
+langchain-groq==0.2.1           # فكي الهاش لو بتستخدمون نماذج لاما السريعة
+
+# ─── Frontend (UI) ──────────────────────────────────────────
+streamlit==1.40.0                 # 🛑 ناقص ومهم لتشغيل واجهة الـ Streamlit (app.py)
+
+# ─── Vector Database (RAG) ──────────────────────────────────
+chromadb==0.5.20
+
+# ─── Backend (FastAPI) ──────────────────────────────────────
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+python-multipart==0.0.12          # لرفع الملفات في FastAPI
+
+# ─── Database & ORM ─────────────────────────────────────────
+sqlalchemy==2.0.35          # ORM
+greenlet==3.1.1                   # 🛑 مطلوب لدعم ميزات الـ Async في SQLAlchemy مع Postgres
+psycopg2-binary==2.9.10           # PostgreSQL driver
+alembic==1.14.0                   # Database migrations
+
+# ─── Authentication & Config ────────────────────────────────
+python-jose[cryptography]==3.3.0  # JWT tokens
+passlib[bcrypt]==1.7.4            # Password hashing
+python-dotenv==1.0.1              # قراءة ملف .env
+
+# ─── Data Validation ────────────────────────────────────────
+pydantic==2.10.1
+pydantic-settings==2.6.1
+
+# ─── HTTP Client ────────────────────────────────────────────
+httpx==0.27.2                     # للـ API calls الداخلية
+requests==2.32.3
+
+# ─── Utilities ──────────────────────────────────────────────
+python-dateutil==2.9.0
+uuid==1.30
+tenacity==9.0.0                   # Retry logic للـ LLM calls
+
+# ─── Testing ────────────────────────────────────────────────
+pytest==8.3.3
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0                 # Code coverage
+
+supabase>=2.3.4
+PyJWT>=2.8.0

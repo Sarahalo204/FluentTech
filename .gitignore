@@ -1,0 +1,29 @@
+# virtual environment
+.venv/
+venv/
+ENV/
+
+Shora7_Alsh3er.env
+.env
+
+# python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# dataset/cache files
+*.parquet
+*.arrow
+.cache/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# logs
+*.log
