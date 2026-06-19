@@ -4,6 +4,8 @@
 CREATE TABLE IF NOT EXISTS learner_profiles (
     learner_id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
+    email TEXT UNIQUE,
+    password_hash TEXT,
     current_level TEXT DEFAULT 'A1',
     target_level TEXT DEFAULT 'B2',
     learning_goals JSONB DEFAULT '[]'::jsonb,
@@ -51,3 +53,48 @@ ALTER TABLE learner_profiles DISABLE ROW LEVEL SECURITY;
 ALTER TABLE sessions DISABLE ROW LEVEL SECURITY;
 ALTER TABLE feedback_history DISABLE ROW LEVEL SECURITY;
 ALTER TABLE session_memory DISABLE ROW LEVEL SECURITY;
+
+-- ==========================================
+-- 6. RAG & Vector Database Setup
+-- ==========================================
+
+-- Enable the pgvector extension to work with embedding vectors
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Create a table to store your documents
+CREATE TABLE IF NOT EXISTS documents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    content TEXT,
+    metadata JSONB,
+    embedding VECTOR(384) -- BAAI/bge-small-en-v1.5 uses 384 dimensions
+);
+
+-- Disable RLS for documents as well, for easy access from backend
+ALTER TABLE documents DISABLE ROW LEVEL SECURITY;
+
+-- Create a function to search for documents
+CREATE OR REPLACE FUNCTION match_documents (
+    query_embedding VECTOR(384),
+    match_count INT DEFAULT null,
+    filter JSONB DEFAULT '{}'
+) RETURNS TABLE (
+    id UUID,
+    content TEXT,
+    metadata JSONB,
+    similarity FLOAT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        documents.id,
+        documents.content,
+        documents.metadata,
+        1 - (documents.embedding <=> query_embedding) AS similarity
+    FROM documents
+    WHERE documents.metadata @> filter
+    ORDER BY documents.embedding <=> query_embedding
+    LIMIT match_count;
+END;
+$$;

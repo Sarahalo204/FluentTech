@@ -1,19 +1,4 @@
-"""
-main.py
--------
-ملف اختبار شامل لـ FluentTech — يختبر كل Agent وكل Tool والـ Pipeline الكامل.
-
-الاختبارات:
-  TEST 1: Tools — اختبار كل tool على حدة
-  TEST 2: Agents — اختبار كل agent node مباشرة
-  TEST 3: Full Pipeline — اختبار الـ Graph الكامل (Supervisor → Agent → END)
-
-التشغيل:
-  python main.py             ← يشغل كل الاختبارات
-  python main.py --tools     ← يشغل اختبارات الـ Tools فقط
-  python main.py --agents    ← يشغل اختبارات الـ Agents فقط
-  python main.py --pipeline  ← يشغل اختبار الـ Pipeline الكامل
-"""
+""""""
 
 import os
 import sys
@@ -24,25 +9,22 @@ import traceback
 from datetime import datetime
 from dotenv import load_dotenv
 
-# تحميل متغيرات البيئة
 load_dotenv()
 
 
-# ─── ألوان للـ Terminal ──────────────────────────────────────────────────────
 
 class C:
     """Terminal colors"""
-    PASS = "\033[92m"   # أخضر
-    FAIL = "\033[91m"   # أحمر
-    INFO = "\033[94m"   # أزرق
-    WARN = "\033[93m"   # أصفر
+    PASS = "\033[92m"
+    FAIL = "\033[91m"
+    INFO = "\033[94m"
+    WARN = "\033[93m"
     BOLD = "\033[1m"
     DIM = "\033[2m"
     RESET = "\033[0m"
     CYAN = "\033[96m"
 
 
-# ─── أدوات مساعدة للاختبار ──────────────────────────────────────────────────
 
 results = {"passed": 0, "failed": 0, "errors": []}
 
@@ -72,7 +54,6 @@ def test_section(name: str):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# TEST 1: TOOLS — اختبار كل أداة على حدة
 # ═══════════════════════════════════════════════════════════════════════════
 
 def test_tools():
@@ -164,7 +145,7 @@ def test_tools():
         })
         data = json.loads(result)
         count = data.get("weak_areas", []).count("past tense")
-        passed = count == 1  # يجب أن لا يتكرر
+        passed = count == 1
         test_result("add_weak_area() — عدم تكرار نقطة ضعف موجودة", passed,
                      f"Count of 'past tense': {count}")
     except Exception as e:
@@ -289,7 +270,6 @@ def test_tools():
         generate_vocabulary_exercise, generate_email_writing_task,
     )
 
-    # 1.16 generate_interview_question — لكل مستوى
     for level in ["A1", "B1", "B2", "C1"]:
         try:
             result = generate_interview_question.invoke({
@@ -353,7 +333,6 @@ def test_tools():
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# TEST 2: AGENTS — اختبار كل Agent مباشرة (بدون Graph)
 # ═══════════════════════════════════════════════════════════════════════════
 
 def test_agents():
@@ -407,7 +386,7 @@ def test_agents():
         )
         passed = (
             state["learner_profile"]["name"] == "Ahmad" and
-            state["assessment_complete"] == True  # لأن عنده بروفايل
+            state["assessment_complete"] == True
         )
         test_result("create_initial_state(with_profile) — بروفايل موجود", passed,
                      f"assessment_complete: {state['assessment_complete']}")
@@ -417,7 +396,6 @@ def test_agents():
     # ──────────────── Supervisor ────────────────
     test_section("Supervisor Agent (agents/supervisor.py)")
 
-    # 2.3 supervisor_node — مستخدم جديد بدون بروفايل
     try:
         state = create_initial_state(
             learner_id="test_003",
@@ -435,7 +413,6 @@ def test_agents():
     except Exception as e:
         test_result("supervisor_node(new_user)", False, str(e))
 
-    # 2.4 supervisor_node — Turn Guard (Agent رد بالفعل)
     try:
         state = create_initial_state(
             learner_id="test_004",
@@ -463,7 +440,7 @@ def test_agents():
     try:
         state = {"next_agent": None}
         route = route_to_agent(state)
-        passed = route == "learning_agent"  # الـ fallback
+        passed = route == "learning_agent"
         test_result("route_to_agent(None) — fallback لـ learning_agent", passed, f"Route: {route}")
     except Exception as e:
         test_result("route_to_agent(fallback)", False, str(e))
@@ -479,7 +456,6 @@ def test_agents():
         )
         result = learning_agent_node(state)
 
-        # تحقق أن الـ Agent رد
         messages = result.get("messages", [])
         has_assistant_reply = any(m["role"] == "assistant" for m in messages)
         correct_type = result.get("current_session_type") == "learning_agent"
@@ -664,7 +640,6 @@ def test_agents():
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# TEST 3: FULL PIPELINE — اختبار الـ Graph الكامل
 # ═══════════════════════════════════════════════════════════════════════════
 
 def test_pipeline():
@@ -694,7 +669,6 @@ def test_pipeline():
 
     learner_id = f"pipeline_{uuid.uuid4().hex[:6]}"
 
-    # 3.2 أول رسالة — مستخدم جديد
     try:
         result = run_agent(
             user_input="Hello, I want to start learning English for my tech career",
@@ -716,7 +690,6 @@ def test_pipeline():
         test_result("run_agent(new_user)", False, f"{str(e)}\n{traceback.format_exc()}")
         state_1 = None
 
-    # 3.3 ثاني رسالة — متابعة المحادثة
     if state_1:
         try:
             result = run_agent(
@@ -744,7 +717,6 @@ def test_pipeline():
     # ──────────────── Pipeline: Conversation ────────────────
     test_section("Pipeline: Conversation Agent")
 
-    # 3.4 محادثة مباشرة
     try:
         profile = {
             "learner_id": "pipe_conv",
@@ -836,13 +808,12 @@ def test_pipeline():
     # ──────────────── Pipeline: Error Handling ────────────────
     test_section("Pipeline: Error Handling")
 
-    # 3.7 رسالة فارغة
     try:
         result = run_agent(
             user_input="",
             learner_id="pipe_empty",
         )
-        passed = result.get("response") is not None  # يجب أن يرد حتى لو فارغة
+        passed = result.get("response") is not None
         test_result("run_agent('') — رسالة فارغة", passed,
                      f"Agent: {result.get('agent_used')}")
     except Exception as e:
@@ -862,11 +833,10 @@ def test_pipeline():
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# MAIN — نقطة الدخول
 # ═══════════════════════════════════════════════════════════════════════════
 
 def print_summary():
-    """يطبع ملخص نتائج الاختبارات"""
+    """"""
     total = results["passed"] + results["failed"]
     print(f"\n{'='*70}")
     print(f"{C.BOLD}  📊 TEST SUMMARY{C.RESET}")
@@ -908,7 +878,6 @@ if __name__ == "__main__":
     print("╚══════════════════════════════════════════════════════════════╝")
     print(f"{C.RESET}")
 
-    # تحديد أي اختبارات يتم تشغيلها
     run_all = not (args.tools or args.agents or args.pipeline)
 
     if run_all or args.tools:

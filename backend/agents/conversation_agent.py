@@ -1,20 +1,4 @@
-"""
-agents/conversation_agent.py
------------------------------
-Conversation Agent — مدرب المحادثة اليومي.
-
-مسؤولياته:
-1. إجراء محادثات تكيفية على مواضيع يومية وتقنية
-2. ضبط مستوى تعقيد اللغة بناءً على مستوى المستخدم
-3. تصحيح الأخطاء بشكل خفيف وطبيعي داخل المحادثة
-4. توليد تمارين Vocabulary وGrammar عند الحاجة
-5. تتبع الموضوع الحالي وتحديثه في الـ State
-6. تتبع الأخطاء بشكل structured
-
-الفرق بينه وبين Feedback Agent:
-- Conversation Agent: يصحح بشكل خفيف ويستمر في المحادثة
-- Feedback Agent: يُحلل النص بالكامل ويُعطي تقييم شامل
-"""
+""""""
 
 import os
 import json
@@ -29,7 +13,6 @@ from tools.exercise_tool import EXERCISE_TOOLS
 
 
 # ─── Language Complexity Rules ──────────────────────────────────────────────
-# كيف يتكلم الـ Agent مع كل مستوى — أكثر تفصيلاً
 
 LANGUAGE_RULES_BY_LEVEL = {
     "A1": (
@@ -98,10 +81,30 @@ TOPIC_KEYWORDS = {
         "interview", "job", "hiring", "resume", "cv",
         "career", "promotion", "salary", "linkedin"
     ],
+    "Web Development": [
+        "web", "react", "angular", "vue", "html", "css", "javascript",
+        "typescript", "nextjs", "node", "express", "ui", "ux", "accessibility"
+    ],
+    "Mobile App Development": [
+        "mobile", "ios", "android", "flutter", "react native", "swift",
+        "kotlin", "app", "apk", "testflight"
+    ],
+    "Database Administration": [
+        "database", "sql", "nosql", "postgres", "mysql", "mongodb", "redis",
+        "schema", "migration", "query", "indexing"
+    ],
+    "Networking": [
+        "network", "tcp", "ip", "dns", "http", "https", "routing",
+        "latency", "bandwidth", "vpn", "proxy", "load balancer"
+    ],
 }
 
 
-CONVERSATION_AGENT_PROMPT = PromptTemplate.from_template("""You are an English conversation coach having a natural practice conversation with a Saudi tech learner.
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+
+CONVERSATION_AGENT_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", """You are an Elite Silicon Valley Technical Lead and Executive Communication Coach.
+You are mentoring a Saudi tech professional to help them achieve global standards of technical communication.
 
 Learner's profile:
 - Name: {learner_name}
@@ -116,47 +119,34 @@ Language complexity rule for this learner:
 Conversation Summary (what happened before):
 {context_summary}
 
-Your conversation style:
-1. Respond naturally to what they said
-2. If they make a grammar mistake, gently correct it inline like: 
-   "Great point! (Small correction: it's 'I have been' not 'I have be') Now, continuing..."
-3. Ask ONE follow-up question to keep the conversation going
-4. Every 3-4 exchanges, introduce a new vocabulary word relevant to the topic
-5. If they seem stuck, offer a simpler way to express the idea
-6. Adapt your language complexity to match their level
-
-Available tools (use when helpful):
-{tools}
-
-Tool names: {tool_names}
+Your conversational style and directives:
+1. Speak with the authority, clarity, and precision of a Senior Tech Lead at a top-tier tech company. Be highly encouraging and empowering.
+2. ALWAYS prioritize answering the user's explicit questions or requests FIRST. Provide deep, valuable technical or linguistic insight.
+3. If they make a grammar or vocabulary mistake, gently correct it inline using exactly this syntax on a new line: *[Correction: ...]*
+   Example: 
+   *[Correction: I have been working on the API]*
+   Then continue your response naturally.
+4. Keep the conversation moving by asking ONE thought-provoking technical or strategic follow-up question. Do NOT ask a question if they just wanted an explanation.
+5. Adapt your complexity to match their level, but maintain a highly professional tech-industry tone.
 
 When to use tools:
-- generate_vocabulary_exercise: When introducing new vocabulary for their topic
-- generate_grammar_exercise: When you notice a repeated grammar mistake
-- generate_email_writing_task: When they want to practice professional writing
-- generate_sentence_rewrite: When they use a simple sentence that could be more advanced
+- generate_vocabulary_exercise: When introducing new advanced vocabulary for their topic
+- generate_grammar_exercise: When you notice a repeated structural mistake
+- generate_email_writing_task: When they want to practice professional communication
+- generate_sentence_rewrite: When they use a simple sentence that could be more impactful
 
 Current topic: {current_topic}
 Exchange count in this session: {exchange_count}
 
-Recent conversation (last 5 messages):
-{conversation_history}
-
-User's message: {input}
-
-Use ReAct format if using tools, otherwise respond directly:
-Thought: [brief reasoning about level-appropriate response]
-Final Answer: [your conversational response]
-
-{agent_scratchpad}""")
+Recent conversation:
+{conversation_history}"""),
+    ("human", "User's message: {input}"),
+    MessagesPlaceholder(variable_name="agent_scratchpad"),
+])
 
 
 def extract_current_topic(messages: list) -> str:
-    """
-    يحدد الموضوع الحالي من تاريخ المحادثة.
-    يبحث في آخر 5 رسائل عن كلمات مفتاحية.
-    يدعم مواضيع أكثر من النسخة السابقة.
-    """
+    """"""
     if not messages:
         return "general conversation"
 
@@ -172,40 +162,27 @@ def extract_current_topic(messages: list) -> str:
 
 
 def _extract_inline_corrections(response: str) -> list:
-    """
-    يستخرج التصحيحات من رد الـ Agent بشكل structured.
-
-    يبحث عن أنماط مثل:
-    - "(Small correction: it's X not Y)"
-    - "(correction: X → Y)"
-    """
+    """"""
     corrections = []
 
-    # Pattern 1: (Small correction: ...)
-    pattern1 = r'\((?:Small |small )?correction:\s*(.+?)\)'
-    matches = re.findall(pattern1, response, re.IGNORECASE)
+    # Catch standard inline corrections: *[Correction: ...]*
+    pattern = r'\*\[Correction:\s*(.*?)\]\*'
+    matches = re.findall(pattern, response, re.IGNORECASE)
     for match in matches:
-        corrections.append({
-            "type": "grammar",
-            "original": "",
-            "correction": match.strip(),
-            "rule": "inline correction by conversation agent",
-            "agent_source": "conversation_agent",
-        })
+        if len(match.strip()) > 3:
+            corrections.append({
+                "type": "grammar",
+                "original": "",
+                "correction": match.strip(),
+                "rule": "inline correction by conversation agent",
+                "agent_source": "conversation_agent",
+            })
 
     return corrections
 
 
 def conversation_agent_node(state: AgentState) -> AgentState:
-    """
-    Conversation Agent Node.
-
-    ما يميزه:
-    - يستخدم context_summary للسياق الكامل
-    - يتتبع الموضوع ويُحدّثه في الـ State
-    - يكتشف الأخطاء ويحفظها structured
-    - يتكيف مع مستوى المستخدم عبر language rules
-    """
+    """"""
     profile = state.get("learner_profile", {})
     user_input = state.get("user_input", "")
     messages = state.get("messages", [])
@@ -214,22 +191,20 @@ def conversation_agent_node(state: AgentState) -> AgentState:
     current_level = profile.get("current_level", "B1") if profile else "B1"
     language_rule = LANGUAGE_RULES_BY_LEVEL.get(current_level, LANGUAGE_RULES_BY_LEVEL["B1"])
 
-    # آخر 5 رسائل للسياق
     conversation_history = "\n".join([
         f"  {m['role'].upper()}: {m['content'][:200]}"
         for m in messages[-5:]
     ])
 
-    # تحديد الموضوع
     current_topic = extract_current_topic(messages)
 
-    # عدد التبادلات (user messages فقط)
     exchange_count = len([m for m in messages if m["role"] == "user"])
 
     try:
         llm = get_llm("conversation")
 
-        agent = create_react_agent(
+        from langchain.agents import create_tool_calling_agent
+        agent = create_tool_calling_agent(
             llm=llm,
             tools=EXERCISE_TOOLS,
             prompt=CONVERSATION_AGENT_PROMPT,
@@ -259,7 +234,6 @@ def conversation_agent_node(state: AgentState) -> AgentState:
 
         agent_response = result.get("output", "Let's continue our conversation. What would you like to discuss?")
 
-        # اكتشاف الأخطاء من رد الـ Agent — structured
         session_mistakes = list(state.get("session_mistakes", []))
         new_corrections = _extract_inline_corrections(agent_response)
         session_mistakes.extend(new_corrections)

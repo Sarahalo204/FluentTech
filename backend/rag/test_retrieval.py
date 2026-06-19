@@ -17,7 +17,6 @@ TEST_QUERIES = [
 
 def run_tests() -> None:
     project_root = Path(__file__).resolve().parents[1]
-    persist_dir = project_root / "chroma_db"
 
     print("=" * 80)
     print("FluentTech RAG Retrieval Test Suite")
@@ -29,7 +28,7 @@ def run_tests() -> None:
         print(f"Query: {query}")
         print("-" * 80)
 
-        results = retrieve(query, top_k=3, persist_dir=str(persist_dir))
+        results = retrieve(query, top_k=3)
 
         if not results:
             print("❌ No results returned.")

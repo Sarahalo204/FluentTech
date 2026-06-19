@@ -3,6 +3,7 @@ import { useAuth } from './context/AuthContext';
 import ChatInterface from './components/ChatInterface';
 import LandingPage from './pages/LandingPage';
 import OnboardingPage from './pages/OnboardingPage';
+import LoginPage from './pages/LoginPage';
 import ProfilePage from './pages/ProfilePage';
 
 const ProtectedRoute = ({ children }) => {
@@ -38,6 +39,7 @@ function App() {
                 { path: '/chat', label: 'Chat' },
               ] : [
                 { path: '/onboarding', label: 'Start Free' },
+                { path: '/login', label: 'Login' },
               ])
             ].map((item) => (
               <NavLink
@@ -68,6 +70,7 @@ function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/onboarding" element={<OnboardingPage />} />
+        <Route path="/login" element={<LoginPage />} />
         <Route path="/profile" element={
           <ProtectedRoute>
             <ProfilePage />

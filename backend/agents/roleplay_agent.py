@@ -1,21 +1,4 @@
-"""
-agents/roleplay_agent.py
-------------------------
-Roleplay Agent — محاكي المواقف المهنية الحقيقية.
-
-مسؤولياته:
-1. محاكاة مقابلات العمل التقنية
-2. محاكاة اجتماعات Sprint والعمل الجماعي
-3. محاكاة مكالمات العملاء والعروض التقديمية
-4. الحفاظ على شخصية المُحاوِر طوال الجلسة
-5. تتبع مراحل الـ Roleplay عبر roleplay_stage_index
-6. توليد Debrief مفصل في نهاية السيناريو
-
-الفرق عن Conversation Agent:
-- Roleplay Agent: يلعب دوراً محدداً (مدير، HR، عميل)
-- الموقف محدد مسبقاً وله بداية ونهاية
-- التقييم أكثر رسمية (Job Readiness Score)
-"""
+""""""
 
 import os
 import json
@@ -28,14 +11,14 @@ from agents.llm_config import get_llm
 from tools.exercise_tool import generate_interview_question, EXERCISE_TOOLS
 
 
-# ─── تعريف شخصيات الـ Roleplay ──────────────────────────────────────────────
 
 ROLEPLAY_PERSONAS = {
     "job_interview": {
+        "persona_name": "Sarah (Hiring Manager)",
         "persona": "Senior Technical Hiring Manager at a top tech company in Riyadh",
         "context": "You are conducting a technical job interview for a software/data/AI engineering position.",
         "style": "Professional but friendly. Ask follow-up questions. Challenge vague answers politely.",
-        "opening": "Good morning! Thank you for coming in today. I'm the hiring manager here. Let's start — could you please tell me about yourself and your technical background?",
+        "opening": "**[Sarah (Hiring Manager)]**: Good morning! Thank you for coming in today. I'm the hiring manager here. Let's start — could you please tell me about yourself and your technical background?",
         "flow": ["introduction", "technical_skills", "past_projects", "behavioral", "questions_for_us"],
         "stage_prompts": {
             "introduction": "Ask about their background and motivation",
@@ -46,10 +29,11 @@ ROLEPLAY_PERSONAS = {
         },
     },
     "sprint_meeting": {
+        "persona_name": "Ahmed (Team Lead)",
         "persona": "Engineering Team Lead facilitating a sprint review meeting",
         "context": "This is a sprint review meeting. The learner is presenting their work to the team.",
         "style": "Direct, focused on delivery and blockers. Ask about timelines and dependencies.",
-        "opening": "Okay team, let's get started. Can you give us a quick update on your tasks from this sprint?",
+        "opening": "**[Ahmed (Team Lead)]**: Okay team, let's get started. Can you give us a quick update on your tasks from this sprint?",
         "flow": ["status_update", "blockers", "next_sprint", "team_feedback"],
         "stage_prompts": {
             "status_update": "Ask what they completed this sprint",
@@ -59,10 +43,11 @@ ROLEPLAY_PERSONAS = {
         },
     },
     "client_call": {
+        "persona_name": "Mr. Smith (Client)",
         "persona": "A client (non-technical business stakeholder) checking on project progress",
         "context": "The learner is updating a client on their project. The client is not technical.",
         "style": "Ask for simple explanations. Show concern about timeline and budget. Be politely demanding.",
-        "opening": "Hi, thanks for joining the call. I wanted to get an update on where things stand with our project. Can you walk me through what's been done?",
+        "opening": "**[Mr. Smith (Client)]**: Hi, thanks for joining the call. I wanted to get an update on where things stand with our project. Can you walk me through what's been done?",
         "flow": ["project_status", "timeline_check", "concerns", "next_steps"],
         "stage_prompts": {
             "project_status": "Ask for a high-level project status",
@@ -72,10 +57,11 @@ ROLEPLAY_PERSONAS = {
         },
     },
     "recruiter_screening": {
+        "persona_name": "Jessica (Recruiter)",
         "persona": "HR Recruiter doing an initial phone screening for a tech role",
         "context": "This is a 15-minute initial screening call to assess basic fit.",
         "style": "Friendly but efficient. Cover salary, availability, and basic background.",
-        "opening": "Hi! Thanks for taking my call. I'm reaching out about the position you applied for. Is this still a good time to chat for about 15 minutes?",
+        "opening": "**[Jessica (Recruiter)]**: Hi! Thanks for taking my call. I'm reaching out about the position you applied for. Is this still a good time to chat for about 15 minutes?",
         "flow": ["availability", "salary_expectations", "background", "motivation", "next_steps"],
         "stage_prompts": {
             "availability": "Ask about their availability and notice period",
@@ -86,10 +72,11 @@ ROLEPLAY_PERSONAS = {
         },
     },
     "project_presentation": {
+        "persona_name": "Dr. Khalid (Lead Reviewer)",
         "persona": "Panel of technical reviewers evaluating a capstone/final project",
         "context": "The learner is presenting their AI/software project to a panel.",
         "style": "Ask technical questions. Challenge design decisions. Be evaluative but constructive.",
-        "opening": "Welcome! Please go ahead and start with an overview of your project — the problem you're solving and your approach.",
+        "opening": "**[Dr. Khalid (Lead Reviewer)]**: Welcome! Please go ahead and start with an overview of your project — the problem you're solving and your approach.",
         "flow": ["overview", "technical_deep_dive", "challenges", "results", "future_work"],
         "stage_prompts": {
             "overview": "Ask for a project overview",
@@ -100,10 +87,11 @@ ROLEPLAY_PERSONAS = {
         },
     },
     "salary_discussion": {
+        "persona_name": "Nadia (HR Director)",
         "persona": "Hiring Manager discussing compensation package",
         "context": "The job offer is on the table. Now discussing the salary and benefits.",
         "style": "Professional negotiation. Don't reveal the top budget immediately. Ask for their expectations.",
-        "opening": "Congratulations — we'd like to move forward with you. Let's talk about the compensation. What are your salary expectations for this role?",
+        "opening": "**[Nadia (HR Director)]**: Congratulations — we'd like to move forward with you. Let's talk about the compensation. What are your salary expectations for this role?",
         "flow": ["expectations", "negotiation", "benefits", "final_offer"],
         "stage_prompts": {
             "expectations": "Ask for their salary expectations",
@@ -115,17 +103,20 @@ ROLEPLAY_PERSONAS = {
 }
 
 
-ROLEPLAY_AGENT_PROMPT = PromptTemplate.from_template("""You are playing the role of: {persona}
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+
+ROLEPLAY_AGENT_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", """You are playing the role of: {persona_name} - {persona}
 
 Scenario context: {context}
 Your interaction style: {style}
 
 CRITICAL RULES:
-1. Stay in character at ALL times
-2. Do NOT break character to give English lessons mid-scenario
-3. React realistically to what the learner says
-4. If the learner gives a weak answer, probe deeper: "Could you elaborate on that?"
-5. If the answer is very poor, react naturally: "I see... let me ask this differently..."
+1. Stay in character at ALL times. 
+2. ALWAYS start your response with "**[{persona_name}]**: " so the user knows exactly who is speaking to them.
+3. React realistically to what the learner says before asking your next question. Embody the persona deeply. Do not just blindly ask the next question from the list.
+4. Do NOT break character to give an English lesson. HOWEVER, if the user makes a grammar or vocabulary mistake, you MUST provide a very brief, polite inline correction on a new line before your in-character response. (e.g. "\n*[Correction: I completed all my projects]*\n**[Sarah (Hiring Manager)]**: Anyway, tell me more about...")
+5. If the learner gives a weak answer, probe deeper: "Could you elaborate on that?"
 6. When all stages are complete, provide a brief OOC (Out of Character) debrief:
    - What they did well
    - What to improve
@@ -146,76 +137,52 @@ Scenario progress:
 - Remaining stages: {remaining_stages}
 - Is this the final stage? {is_final_stage}
 
-Available tools:
-{tools}
-
-Tool names: {tool_names}
-
 When to use tools:
 - generate_interview_question: To get structured questions for interview scenarios
 - generate_vocabulary_exercise: ONLY at the end for debrief vocabulary
 
 Conversation so far:
-{conversation_history}
-
-Learner's response: {input}
-
-Thought: [Am I in character? What's the natural next response? Should I advance to next stage?]
-Final Answer: [Stay in character. Natural, realistic response.]
-
-{agent_scratchpad}""")
+{conversation_history}"""),
+    ("human", "Learner's response: {input}"),
+    MessagesPlaceholder(variable_name="agent_scratchpad"),
+])
 
 
 def determine_scenario(user_input: str, state: AgentState) -> str:
-    """
-    يحدد نوع الـ Roleplay من رسالة المستخدم.
-    لو موجود في الـ State، يستخدمه مباشرة.
-    """
+    """"""
     existing = state.get("roleplay_scenario")
     if existing:
         return existing
 
     user_lower = user_input.lower()
+    keywords = {
+        "project_presentation": ["presentation", "present", "slides", "deck", "architecture", "design review", "capstone"],
+        "job_interview": ["interview", "job", "hire", "hiring", "apply", "position"],
+        "sprint_meeting": ["sprint", "standup", "agile", "scrum", "update", "progress", "blocker", "ticket"],
+        "client_call": ["client", "customer", "demo", "meeting", "stakeholder", "pitch", "proposal"],
+        "recruiter_screening": ["recruiter", "screening", "hr", "phone screen", "talent", "culture fit"],
+        "salary_discussion": ["salary", "raise", "promotion", "compensation", "offer", "negotiate", "pay", "equity"]
+    }
 
-    if any(w in user_lower for w in ["interview", "hiring", "job"]):
-        return "job_interview"
-    elif any(w in user_lower for w in ["sprint", "meeting", "standup", "team"]):
-        return "sprint_meeting"
-    elif any(w in user_lower for w in ["client", "customer", "stakeholder"]):
-        return "client_call"
-    elif any(w in user_lower for w in ["salary", "offer", "compensation", "negotiate"]):
-        return "salary_discussion"
-    elif any(w in user_lower for w in ["present", "project", "demo", "showcase"]):
-        return "project_presentation"
-    elif any(w in user_lower for w in ["recruiter", "screening", "phone", "hr"]):
-        return "recruiter_screening"
-    else:
-        return "job_interview"  # Fallback
+    for scenario, words in keywords.items():
+        if any(w in user_lower for w in words):
+            return scenario
+
+    return "job_interview"  # Fallback
 
 
 def roleplay_agent_node(state: AgentState) -> AgentState:
-    """
-    Roleplay Agent Node.
-
-    ما يميزه:
-    1. يحمل شخصية محددة طوال الجلسة
-    2. يتتبع مرحلة الـ Roleplay عبر roleplay_stage_index من الـ State
-    3. يستخدم context_summary للسياق
-    4. ينتقل بين المراحل تلقائياً
-    5. يُنشئ Debrief في المرحلة الأخيرة
-    """
+    """"""
     profile = state.get("learner_profile", {})
     user_input = state.get("user_input", "")
     messages = state.get("messages", [])
     context_summary = state.get("context_summary", "No previous context.")
 
-    # تحديد السيناريو
     scenario_key = determine_scenario(user_input, state)
     scenario = ROLEPLAY_PERSONAS.get(scenario_key, ROLEPLAY_PERSONAS["job_interview"])
 
     current_level = profile.get("current_level", "B1") if profile else "B1"
 
-    # إذا هذه أول رسالة في الـ Roleplay — ابدأ بالافتتاحية
     is_first_message = state.get("roleplay_scenario") is None
 
     conversation_history = "\n".join([
@@ -223,29 +190,33 @@ def roleplay_agent_node(state: AgentState) -> AgentState:
         for m in messages[-6:]
     ])
 
-    # ─── Stage Management عبر الـ State ────────────────────────────────────
     flow = scenario["flow"]
     stage_index = state.get("roleplay_stage_index", 0)
 
-    # ننتقل للمرحلة التالية بعد كل ردين من المستخدم
     if not is_first_message:
         user_messages_in_roleplay = len([
             m for m in messages if m["role"] == "user"
-        ]) - 1  # نطرح الرسالة اللي بدأت الـ roleplay
-        # كل ردين = مرحلة جديدة
-        stage_index = min(user_messages_in_roleplay // 2, len(flow) - 1)
+        ]) - 1
+        stage_index = user_messages_in_roleplay
 
-    current_stage = flow[stage_index]
-    remaining_stages = flow[stage_index + 1:]
-    is_final_stage = stage_index >= len(flow) - 1
-    stage_guidance = scenario.get("stage_prompts", {}).get(
-        current_stage, "Continue the conversation naturally."
-    )
+    if stage_index < len(flow):
+        current_stage = flow[stage_index]
+        remaining_stages = flow[stage_index + 1:]
+        is_final_stage = False
+        stage_guidance = scenario.get("stage_prompts", {}).get(
+            current_stage, "Continue the conversation naturally."
+        )
+    else:
+        current_stage = "debrief"
+        remaining_stages = []
+        is_final_stage = True
+        stage_guidance = "THE SCENARIO IS OVER. You MUST break character now and output the Out-of-Character (OOC) Debrief containing their strengths, weaknesses, and language tips. DO NOT ask any more interview questions."
 
     try:
         llm = get_llm("roleplay")
 
-        agent = create_react_agent(
+        from langchain.agents import create_tool_calling_agent
+        agent = create_tool_calling_agent(
             llm=llm,
             tools=EXERCISE_TOOLS,
             prompt=ROLEPLAY_AGENT_PROMPT,
@@ -259,7 +230,6 @@ def roleplay_agent_node(state: AgentState) -> AgentState:
             handle_parsing_errors=True,
         )
 
-        # أول رسالة = الافتتاحية
         actual_input = (
             scenario["opening"] + "\n\n[The learner has arrived. Start the scenario.]"
             if is_first_message
@@ -268,6 +238,7 @@ def roleplay_agent_node(state: AgentState) -> AgentState:
 
         result = executor.invoke({
             "input": actual_input,
+            "persona_name": scenario["persona_name"],
             "persona": scenario["persona"],
             "context": scenario["context"],
             "style": scenario["style"],

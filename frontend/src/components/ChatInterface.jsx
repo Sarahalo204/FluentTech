@@ -2,12 +2,6 @@ import { useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { apiService } from '../api/apiService';
 import { useAuth } from '../context/AuthContext';
-const sessionTabs = [
-  { id: 'conversation', label: 'Conversation', accent: 'bg-sky-500', header: 'from-sky-800 via-sky-900 to-slate-950' },
-  { id: 'roleplay', label: 'Roleplay', accent: 'bg-violet-500', header: 'from-violet-800 via-violet-900 to-slate-950' },
-  { id: 'feedback', label: 'Feedback', accent: 'bg-emerald-500', header: 'from-emerald-800 via-emerald-900 to-slate-950' },
-];
-
 const formatTime = () => new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
 const scoreColorClass = (value) => {
@@ -19,7 +13,6 @@ const scoreColorClass = (value) => {
 function ChatInterface() {
   const { user } = useAuth();
   const [input, setInput] = useState('');
-  const [sessionType, setSessionType] = useState('conversation');
   const [messages, setMessages] = useState([
     {
       id: 'welcome',
@@ -34,15 +27,11 @@ function ChatInterface() {
 
   const mutation = useMutation(
     async (question) => {
-      const mappedSessionType = sessionType === 'conversation' ? 'conversation_agent' 
-        : sessionType === 'roleplay' ? 'roleplay_agent' 
-        : 'feedback_agent';
-        
       const response = await apiService.sendMessage(
         user?.learner_id || 'anonymous',
         'session_default',
         question,
-        mappedSessionType
+        null // Removed forced session type, let Supervisor decide
       );
       return response;
     },
@@ -58,7 +47,6 @@ function ChatInterface() {
 
         setMessages((current) => [
           ...current,
-          { id: `user-${Date.now()}`, role: 'user', text: question, timestamp: formatTime() },
           assistantMessage,
         ]);
 
@@ -72,7 +60,6 @@ function ChatInterface() {
       onError: (error) => {
         setMessages((current) => [
           ...current,
-          { id: `user-${Date.now()}`, role: 'user', text: input, timestamp: formatTime() },
           {
             id: `assistant-error-${Date.now()}`,
             role: 'assistant',
@@ -121,11 +108,9 @@ function ChatInterface() {
     setSources([]);
   };
 
-  const activeTab = sessionTabs.find((tab) => tab.id === sessionType) ?? sessionTabs[0];
-
   return (
     <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-      <header className={`rounded-3xl border border-slate-700 p-6 shadow-xl shadow-slate-950/20 backdrop-blur bg-gradient-to-br ${activeTab.header}`}>
+      <header className="rounded-3xl border border-slate-700 p-6 shadow-xl shadow-slate-950/20 backdrop-blur bg-gradient-to-br from-sky-800 via-sky-900 to-slate-950">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-slate-200/80">FluentTech</p>
@@ -142,34 +127,17 @@ function ChatInterface() {
             Clear chat
           </button>
         </div>
-
-        <div className="mt-6 flex flex-wrap gap-3">
-          {sessionTabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setSessionType(tab.id)}
-              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                sessionType === tab.id
-                  ? `${tab.accent} text-white shadow-lg shadow-slate-950/30`
-                  : 'bg-white/10 text-slate-200 hover:bg-white/15'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
       </header>
 
       <main className="grid gap-6 lg:grid-cols-[1.4fr_0.6fr]">
         <section className="rounded-3xl border border-slate-700 bg-slate-900/90 p-6 shadow-xl shadow-slate-950/20">
           <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-white">{activeTab.label}</h2>
-              <p className="mt-1 text-sm text-slate-400">Switch sessions to change the assistant tone and color theme.</p>
+              <h2 className="text-xl font-semibold text-white">Conversation</h2>
+              <p className="mt-1 text-sm text-slate-400">The assistant will intelligently adapt to your learning needs.</p>
             </div>
             <div className="inline-flex items-center gap-2 rounded-2xl bg-slate-800 px-3 py-2 text-xs text-slate-300">
-              <span className={`h-2.5 w-2.5 rounded-full ${activeTab.accent}`}></span>
+              <span className="h-2.5 w-2.5 rounded-full bg-sky-500"></span>
               {mutation.isLoading ? 'Typing...' : 'Ready to ask'}
             </div>
           </div>

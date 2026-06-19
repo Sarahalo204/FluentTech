@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const messages = [
   'Let’s refine your update for the product review meeting.',
@@ -9,6 +10,7 @@ const messages = [
 
 function LandingPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const worksRef = useRef(null);
   const [coachMessage, setCoachMessage] = useState('');
   const [messageIndex, setMessageIndex] = useState(0);
@@ -36,7 +38,7 @@ function LandingPage() {
     return () => clearInterval(typingTimer);
   }, [messageIndex]);
 
-  const handleStartFree = () => navigate('/onboarding');
+  const handleStartFree = () => navigate(user ? '/chat' : '/onboarding');
   const handleSeeHow = () => worksRef.current?.scrollIntoView({ behavior: 'smooth' });
 
   return (
@@ -132,8 +134,14 @@ function LandingPage() {
             <h1>Speak Like You <strong>Belong in the Room</strong>.</h1>
             <p className="hero-text">AI-powered English coaching built for Saudi tech professionals — designed to give your language confidence, cultural poise, and career momentum.</p>
             <div className="hero-actions">
-              <button type="button" className="btn-primary" onClick={handleStartFree}>Start Free</button>
-              <button type="button" className="btn-secondary" onClick={handleSeeHow}>See How It Works</button>
+              <button type="button" className="btn-primary" onClick={handleStartFree}>
+                {user ? 'Go to Chat' : 'Start Free'}
+              </button>
+              {!user && (
+                <button type="button" className="btn-secondary" onClick={() => navigate('/login')}>
+                  Login
+                </button>
+              )}
             </div>
           </section>
 

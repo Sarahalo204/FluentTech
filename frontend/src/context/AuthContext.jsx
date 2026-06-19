@@ -20,8 +20,8 @@ export function AuthProvider({ children }) {
     setIsLoading(false);
   }, []);
 
-  const login = async (learnerId) => {
-    const userData = await apiService.login(learnerId);
+  const login = async (email, password) => {
+    const userData = await apiService.login({ email, password });
     setUser(userData);
     if (userData.access_token) apiService.setToken(userData.access_token);
     localStorage.setItem('edulingo_user', JSON.stringify(userData));
@@ -29,6 +29,7 @@ export function AuthProvider({ children }) {
   };
 
   const register = async (data) => {
+    // data contains {name, email, password, target_level, learning_goals, preferred_topics}
     const userData = await apiService.register(data);
     setUser(userData);
     if (userData.access_token) apiService.setToken(userData.access_token);

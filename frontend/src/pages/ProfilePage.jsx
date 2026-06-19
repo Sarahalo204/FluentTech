@@ -3,21 +3,39 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../api/apiService';
 
-const topics = ['AI', 'Cloud', 'Data', 'Agile', 'Interviews', 'Emails'];
+const allTopics = ['Software Engineering', 'Data Science', 'DevOps', 'Product Management', 'Cloud Computing', 'AI', 'Presentations', 'Email Writing'];
 
 function ProfilePage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [selectedTopics, setSelectedTopics] = useState(['AI', 'Cloud', 'Emails']);
-  const [streakDays, setStreakDays] = useState(7);
+  
+  const [name, setName] = useState('');
+  const [selectedTopics, setSelectedTopics] = useState([]);
+  const [learningGoals, setLearningGoals] = useState([]);
+  const [targetLevel, setTargetLevel] = useState('B2');
+  
+  const [streakDays, setStreakDays] = useState(0);
   const [completedSessions, setCompletedSessions] = useState(0);
   const totalSessions = 5;
 
+  const [isSaving, setIsSaving] = useState(false);
+
   useEffect(() => {
     if (user?.learner_id) {
+      // Fetch Profile Data
+      apiService.getProfile(user.learner_id)
+        .then(profile => {
+          setName(profile.name || '');
+          setTargetLevel(profile.target_level || 'B2');
+          setSelectedTopics(profile.preferred_topics || []);
+          setLearningGoals(profile.learning_goals || []);
+        })
+        .catch(err => console.error('Error fetching profile:', err));
+
+      // Fetch Progress Data
       apiService.getProgress(user.learner_id)
         .then(data => {
-          setCompletedSessions(data.sessions_completed || 0);
+          setCompletedSessions(data.sessionsCompleted || 0);
           setStreakDays(data.streak_days || 0);
         })
         .catch(err => console.error('Error fetching progress:', err));
@@ -32,6 +50,25 @@ function ProfilePage() {
     );
   };
 
+  const handleSave = async () => {
+    if (!user?.learner_id) return;
+    setIsSaving(true);
+    try {
+      await apiService.updateProfile(user.learner_id, {
+        name,
+        target_level: targetLevel,
+        preferred_topics: selectedTopics,
+        learning_goals: learningGoals,
+      });
+      alert('Profile updated successfully!');
+    } catch (e) {
+      console.error(e);
+      alert('Failed to update profile.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="mx-auto min-h-screen max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="rounded-3xl border border-slate-700 bg-slate-900/90 p-8 shadow-xl shadow-slate-950/20">
@@ -39,24 +76,50 @@ function ProfilePage() {
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-sky-300/90">FluentTech</p>
             <h1 className="mt-3 text-3xl font-semibold text-white sm:text-4xl">Your Profile</h1>
-            <p className="mt-2 max-w-2xl text-sm text-slate-400">Track your progress, manage your focus topics, and retake the assessment anytime.</p>
+            <p className="mt-2 max-w-2xl text-sm text-slate-400">Track your progress, edit your personal details, and manage your focus topics.</p>
           </div>
           <button
             type="button"
-            onClick={() => navigate('/onboarding')}
-            className="inline-flex items-center justify-center rounded-3xl bg-sky-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-400"
+            onClick={handleSave}
+            disabled={isSaving}
+            className="inline-flex items-center justify-center rounded-3xl bg-emerald-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:opacity-50"
           >
-            Retake Assessment
+            {isSaving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
-          <div className="rounded-3xl border border-slate-800 bg-slate-950/80 p-6 text-center">
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Current level</p>
-            <div className="mx-auto mt-6 flex h-28 w-28 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-sky-500 text-4xl font-bold text-white shadow-lg shadow-violet-500/20">
-              {user?.cefr_level || 'B2'}
+          <div className="rounded-3xl border border-slate-800 bg-slate-950/80 p-6">
+            <h2 className="text-lg font-semibold text-white mb-4">Personal Details</h2>
+            <div className="space-y-4">
+              <label className="block space-y-2 text-sm text-slate-200">
+                Name
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full rounded-3xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400"
+                />
+              </label>
+              
+              <div className="block space-y-2 text-sm text-slate-200">
+                Current Assessed Level
+                <div className="w-full rounded-3xl border border-slate-700 bg-slate-900/40 px-4 py-3 text-sm font-semibold text-sky-400 outline-none cursor-not-allowed">
+                  {user?.cefr_level || 'A1'}
+                </div>
+              </div>
+
+              <label className="block space-y-2 text-sm text-slate-200">
+                Learning Goals (comma separated)
+                <input
+                  type="text"
+                  value={learningGoals.join(', ')}
+                  onChange={(e) => setLearningGoals(e.target.value.split(',').map(v => v.trim()).filter(Boolean))}
+                  placeholder="e.g. Interview Prep, Presentation Skills"
+                  className="w-full rounded-3xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400"
+                />
+              </label>
             </div>
-            <p className="mt-4 text-sm text-slate-300">CEFR proficiency estimated from your last diagnostic assessment.</p>
           </div>
 
           <div className="rounded-3xl border border-slate-800 bg-slate-950/80 p-6">
@@ -92,7 +155,7 @@ function ProfilePage() {
         <div className="mt-6 rounded-3xl border border-slate-800 bg-slate-950/80 p-6">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h2 className="text-lg font-semibold text-white">Editable learning topics</h2>
+              <h2 className="text-lg font-semibold text-white">Preferred Topics</h2>
               <p className="mt-2 text-sm text-slate-400">Select the topics you want to focus on this week.</p>
             </div>
             <div className="rounded-full bg-slate-900 px-4 py-2 text-xs uppercase tracking-[0.24em] text-slate-400">
@@ -101,7 +164,7 @@ function ProfilePage() {
           </div>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-3">
-            {topics.map((topic) => (
+            {allTopics.map((topic) => (
               <button
                 key={topic}
                 type="button"
@@ -118,23 +181,6 @@ function ProfilePage() {
                 </div>
               </button>
             ))}
-          </div>
-        </div>
-
-        <div className="mt-6 grid gap-6 sm:grid-cols-[1fr_1fr]">
-          <div className="rounded-3xl border border-slate-800 bg-slate-950/80 p-6 text-center">
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Learning streak</p>
-            <p className="mt-4 text-5xl font-bold text-white">{streakDays}</p>
-            <p className="mt-2 text-sm text-slate-300">days in a row</p>
-          </div>
-          <div className="rounded-3xl border border-slate-800 bg-slate-950/80 p-6">
-            <h3 className="text-lg font-semibold text-white">Weekly status</h3>
-            <p className="mt-3 text-sm text-slate-400">Keep going with your selected topics and complete the sessions to improve your fluency.</p>
-            <div className="mt-6 space-y-3 text-sm text-slate-300">
-              <p>• Focus on practical AI vocabulary.</p>
-              <p>• Practice email writing with polite phrasing.</p>
-              <p>• Review cloud and DevOps conversation examples.</p>
-            </div>
           </div>
         </div>
       </div>

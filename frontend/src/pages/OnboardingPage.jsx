@@ -1,108 +1,136 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { apiService } from '../api/apiService';
-const questions = [
-  'Describe your last project in 2-3 sentences.',
-  'What is one challenge you face when writing English emails?',
-  'Explain your favorite technical topic in simple English.',
-  'How do you prepare for a work presentation or meeting?',
+
+const mcqQuestions = [
+  { text: "Q1: 'I ____ a software engineer.'", options: ["am", "is", "are", "be"], correctIndex: 0 },
+  { text: "Q2: '____ you work in an office?'", options: ["Does", "Are", "Do", "Is"], correctIndex: 2 },
+  { text: "Q3: 'We ____ a new project last week.'", options: ["start", "started", "starting", "starts"], correctIndex: 1 },
+  { text: "Q4: 'Please send the report ____ Friday.'", options: ["in", "on", "at", "by"], correctIndex: 3 },
+  { text: "Q5: 'I look forward ____ you soon.'", options: ["to meet", "meeting", "to meeting", "meet"], correctIndex: 2 },
+  { text: "Q6: 'If the server ____ down, we will lose data.'", options: ["goes", "will go", "go", "went"], correctIndex: 0 },
+  { text: "Q7: 'Despite ____ a tight deadline, the team delivered the feature.'", options: ["have", "to have", "had", "having"], correctIndex: 3 },
+  { text: "Q8: 'The new software is ____ faster than the previous version.'", options: ["significantly", "significant", "significance", "signify"], correctIndex: 0 },
+  { text: "Q9: 'It is imperative that the system ____ updated immediately.'", options: ["is", "be", "was", "has been"], correctIndex: 1 },
+  { text: "Q10: 'Had I known about the bug earlier, I ____ the release.'", options: ["would delay", "delayed", "will have delayed", "would have delayed"], correctIndex: 3 }
 ];
 
 const levelProfiles = {
-  Beginner: {
-    level: 'A2',
-    description: 'You are building a foundation in English and can handle simple, everyday communication. A structured plan will help you grow confidence in professional scenarios.',
-    goals: [
-      'Practice short business conversations daily.',
-      'Learn key workplace vocabulary and email phrases.',
-      'Complete grammar drills for sentence structure.',
-      'Build confidence with short spoken responses.',
-    ],
+  A1: {
+    description: 'You are at the beginner stage. Focus on basic vocabulary and simple sentences.',
+    goals: ['Learn basic tech vocabulary', 'Introduce yourself clearly', 'Understand simple instructions']
   },
-  Intermediate: {
-    level: 'B1',
-    description: 'You can communicate in many common workplace situations but still need polish and fluency. The next stage focuses on accuracy and clearer presentation skills.',
-    goals: [
-      'Develop stronger email and report writing skills.',
-      'Practice structured story-telling for meetings.',
-      'Review complex grammar and transition phrases.',
-      'Take one mock presentation every week.',
-    ],
+  A2: {
+    description: 'You can form simple sentences but need more practice with grammar and flow.',
+    goals: ['Describe daily tasks', 'Write simple emails', 'Participate in basic conversations']
   },
-  Advanced: {
-    level: 'B2',
-    description: 'You already handle advanced communication well and can improve precision and confidence. This learning path accelerates your professional fluency.',
-    goals: [
-      'Refine persuasive language for proposals.',
-      'Practice advanced listening and feedback skills.',
-      'Write concise executive summaries and emails.',
-      'Simulate leadership conversation scenarios.',
-    ],
+  B1: {
+    description: 'You can communicate on familiar topics. The goal is to reduce grammar errors.',
+    goals: ['Explain projects clearly', 'Write structured emails', 'Understand meeting discussions']
   },
+  B2: {
+    description: 'You interact with fluency! We will polish complex structures and professional tone.',
+    goals: ['Lead meetings confidently', 'Present technical concepts', 'Write professional reports']
+  },
+  C1: {
+    description: 'Advanced proficiency. You express ideas fluently with rare errors.',
+    goals: ['Master persuasive speaking', 'Handle complex negotiations', 'Write executive summaries']
+  },
+  C2: {
+    description: 'Near-native proficiency. Focus on sophisticated vocabulary and nuance.',
+    goals: ['Publish technical papers', 'Deliver keynote speeches', 'Master cultural nuances']
+  }
 };
 
 function OnboardingPage() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { register, updateLevel } = useAuth();
+
   const [step, setStep] = useState(1);
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [jobTitle, setJobTitle] = useState('Software Engineer');
-  const [englishLevel, setEnglishLevel] = useState('Beginner');
-  const [answers, setAnswers] = useState(['', '', '', '']);
+  const [error, setError] = useState('');
+
+  const [answers, setAnswers] = useState(Array(mcqQuestions.length).fill(null));
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-
-  const profile = useMemo(() => levelProfiles[englishLevel], [englishLevel]);
+  const [calculatedLevel, setCalculatedLevel] = useState('A1');
 
   useEffect(() => {
-    if (step === 2 && currentQuestion >= questions.length) {
+    if (step === 2 && currentQuestion >= mcqQuestions.length) {
       setIsAnalyzing(true);
-      const timer = setTimeout(() => {
+
+      // Calculate level based on correct answers
+      let correctCount = 0;
+      for (let i = 0; i < mcqQuestions.length; i++) {
+        if (answers[i] === mcqQuestions[i].correctIndex) {
+          correctCount++;
+        }
+      }
+
+      let level = "A1";
+      if (correctCount >= 9) level = "C2";
+      else if (correctCount >= 8) level = "C1";
+      else if (correctCount >= 6) level = "B2";
+      else if (correctCount >= 4) level = "B1";
+      else if (correctCount >= 2) level = "A2";
+
+      setCalculatedLevel(level);
+
+      const completeAssessment = async () => {
+        try {
+          await updateLevel(level);
+        } catch (e) {
+          console.error("Failed to update level", e);
+        }
         setIsAnalyzing(false);
         setStep(3);
-      }, 2000);
+      };
+
+      const timer = setTimeout(completeAssessment, 2500);
       return () => clearTimeout(timer);
     }
-    return undefined;
-  }, [currentQuestion, step]);
+  }, [currentQuestion, step, answers, updateLevel]);
 
   const progress = ((step - 1) / 2) * 100;
 
-  const handleQuestionSubmit = (event) => {
-    event.preventDefault();
-    if (currentQuestion < questions.length) {
+  const handleOptionSelect = (optionIndex) => {
+    const newAnswers = [...answers];
+    newAnswers[currentQuestion] = optionIndex;
+    setAnswers(newAnswers);
+
+    // Auto proceed to next question after a tiny delay for better UX
+    setTimeout(() => {
       setCurrentQuestion((current) => current + 1);
-    }
+    }, 300);
   };
 
   const handleNextStep1 = async () => {
-    if (!name.trim()) {
-      alert("Please enter your name.");
+    setError('');
+    if (!name.trim() || !email.trim() || !password.trim()) {
+      setError("Please enter your name, email, and password.");
       return;
     }
-    const cefr = englishLevel === 'Beginner' ? 'A2' : englishLevel === 'Intermediate' ? 'B1' : 'B2';
     try {
-      const data = await apiService.register({
+      await register({
         name,
-        job_role: jobTitle,
-        cefr_level: cefr,
+        email,
+        password,
+        target_level: "B2", // Default target, user can change in profile
+        learning_goals: ["Career Growth", "Interview Prep"],
+        preferred_topics: [jobTitle],
       });
-      login(data.token, { learner_id: data.learner_id, name: data.name, role: 'learner', cefr_level: cefr });
       setStep(2);
-    } catch (error) {
-      console.error('Registration failed:', error);
-      alert('Registration failed. Please try again.');
+    } catch (err) {
+      console.error(err);
+      setError(err.response?.data?.detail || "Registration failed. Email might already exist.");
     }
   };
 
-  const handleGoalStart = async () => {
-    try {
-      await apiService.updateLevel(profile.level);
-    } catch (e) {
-      console.error("Failed to update level", e);
-    }
-    navigate('/chat');
+  const handleGoalStart = () => {
+    navigate('/');
   };
 
   return (
@@ -127,13 +155,24 @@ function OnboardingPage() {
 
         {step === 1 && (
           <div className="space-y-6">
+            <div className="text-center">
+              <h1 className="mt-4 text-3xl font-semibold text-white">Let's personalize your experience</h1>
+              <p className="mt-3 text-sm text-slate-400">Tell us a bit about your role so we can tailor your practice.</p>
+            </div>
+
+            {error && (
+              <div className="rounded-2xl bg-red-500/10 p-4 border border-red-500/20 text-sm text-red-400 text-center">
+                {error}
+              </div>
+            )}
+
             <div className="rounded-3xl bg-slate-950/70 p-6">
-              <h2 className="text-xl font-semibold text-white">Step 1 — Basic Info</h2>
-              <p className="mt-2 text-sm text-slate-400">Fill in the fields below to help FluentTech personalize your experience.</p>
+              <h2 className="text-xl font-semibold text-white">Step 1 — Basic Info & Registration</h2>
+              <p className="mt-2 text-sm text-slate-400">Please provide your details to register.</p>
 
               <div className="mt-6 grid gap-6 sm:grid-cols-2">
                 <label className="space-y-2 text-sm text-slate-200">
-                  الاسم
+                  الاسم (Name)
                   <input
                     type="text"
                     value={name}
@@ -144,36 +183,47 @@ function OnboardingPage() {
                 </label>
 
                 <label className="space-y-2 text-sm text-slate-200">
-                  المسمى الوظيفي
+                  البريد الإلكتروني (Email)
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="you@example.com"
+                    className="w-full rounded-3xl border border-slate-700 bg-slate-950/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20"
+                  />
+                </label>
+
+                <label className="space-y-2 text-sm text-slate-200">
+                  كلمة المرور (Password)
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="••••••••"
+                    className="w-full rounded-3xl border border-slate-700 bg-slate-950/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20"
+                  />
+                </label>
+
+                <label className="space-y-2 text-sm text-slate-200">
+                  المجال المهني (Job Field)
                   <select
                     value={jobTitle}
                     onChange={(event) => setJobTitle(event.target.value)}
                     className="w-full rounded-3xl border border-slate-700 bg-slate-950/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20"
                   >
                     <option>Software Engineer</option>
-                    <option>Data Scientist</option>
-                    <option>DevOps</option>
+                    <option>AI Engineer</option>
+                    <option>Frontend Developer</option>
+                    <option>Backend Developer</option>
+                    <option>Data Scientist / Analyst</option>
+                    <option>DevOps Engineer</option>
+                    <option>Cybersecurity Specialist</option>
+                    <option>UI/UX Designer</option>
                     <option>Product Manager</option>
+                    <option>QA Engineer</option>
+                    <option>IT Support</option>
                     <option>Other</option>
                   </select>
-                </label>
-
-                <label className="space-y-2 text-sm text-slate-200 sm:col-span-2">
-                  مستوى اللغة الإنجليزية الحالي
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    {['Beginner', 'Intermediate', 'Advanced'].map((level) => (
-                      <button
-                        key={level}
-                        type="button"
-                        onClick={() => setEnglishLevel(level)}
-                        className={`rounded-3xl border px-4 py-3 text-sm font-medium transition ${
-                          englishLevel === level ? 'border-sky-400 bg-sky-500 text-white' : 'border-slate-700 bg-slate-950/90 text-slate-200 hover:border-slate-500 hover:bg-slate-800'
-                        }`}
-                      >
-                        {level}
-                      </button>
-                    ))}
-                  </div>
                 </label>
               </div>
             </div>
@@ -184,7 +234,7 @@ function OnboardingPage() {
                 onClick={handleNextStep1}
                 className="inline-flex items-center justify-center rounded-3xl bg-sky-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-400"
               >
-                التالي
+                Register & Start Test
               </button>
             </div>
           </div>
@@ -193,50 +243,41 @@ function OnboardingPage() {
         {step === 2 && (
           <div className="space-y-6">
             <div className="rounded-3xl bg-slate-950/70 p-6">
-              <h2 className="text-xl font-semibold text-white">Step 2 — Diagnostic Chat</h2>
-              <p className="mt-2 text-sm text-slate-400">Answer the English practice prompts to help us evaluate your current level.</p>
+              <h2 className="text-xl font-semibold text-white">Step 2 — English Level Assessment</h2>
+              <p className="mt-2 text-sm text-slate-400">Answer these {mcqQuestions.length} questions to evaluate your level (A1-C2).</p>
 
-              {currentQuestion < questions.length ? (
-                <form onSubmit={handleQuestionSubmit} className="mt-6 space-y-4">
+              {currentQuestion < mcqQuestions.length ? (
+                <div className="mt-6 space-y-4">
                   <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6">
-                    <p className="text-sm font-semibold text-slate-100">Question {currentQuestion + 1}</p>
-                    <p className="mt-3 text-base leading-7 text-slate-200">{questions[currentQuestion]}</p>
+                    <p className="text-sm font-semibold text-slate-100">Question {currentQuestion + 1} of {mcqQuestions.length}</p>
+                    <p className="mt-3 text-lg leading-7 text-white font-medium">{mcqQuestions[currentQuestion].text}</p>
                   </div>
 
-                  <label className="space-y-2 text-sm text-slate-200">
-                    Your answer
-                    <textarea
-                      rows="4"
-                      value={answers[currentQuestion]}
-                      onChange={(event) => {
-                        const next = [...answers];
-                        next[currentQuestion] = event.target.value;
-                        setAnswers(next);
-                      }}
-                      className="w-full rounded-3xl border border-slate-700 bg-slate-950/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20"
-                      placeholder="Type your response here…"
-                    />
-                  </label>
-
-                  <div className="flex justify-end">
-                    <button
-                      type="submit"
-                      disabled={!answers[currentQuestion].trim()}
-                      className="inline-flex items-center justify-center rounded-3xl bg-sky-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-700"
-                    >
-                      {currentQuestion + 1 === questions.length ? 'Submit answers' : 'Next question'}
-                    </button>
+                  <div className="grid gap-3 sm:grid-cols-2 mt-6">
+                    {mcqQuestions[currentQuestion].options.map((option, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleOptionSelect(idx)}
+                        className={`rounded-2xl border p-4 text-left text-sm font-medium transition ${answers[currentQuestion] === idx
+                            ? 'border-sky-400 bg-sky-500/20 text-white'
+                            : 'border-slate-700 bg-slate-900 text-slate-200 hover:border-slate-500 hover:bg-slate-800'
+                          }`}
+                      >
+                        {option}
+                      </button>
+                    ))}
                   </div>
-                </form>
+                </div>
               ) : (
                 <div className="mt-6 rounded-3xl border border-slate-800 bg-slate-900/80 p-8 text-center text-slate-200">
                   {isAnalyzing ? (
                     <>
                       <p className="text-lg font-semibold text-white">Analyzing your level...</p>
-                      <p className="mt-3 text-sm text-slate-400">This should only take a moment.</p>
+                      <p className="mt-3 text-sm text-slate-400">Mapping your answers to CEFR guidelines.</p>
                     </>
                   ) : (
-                    <p className="text-lg font-semibold text-white">Ready to continue.</p>
+                    <p className="text-lg font-semibold text-white">Assessment Complete.</p>
                   )}
                 </div>
               )}
@@ -248,17 +289,19 @@ function OnboardingPage() {
           <div className="space-y-6">
             <div className="rounded-3xl bg-slate-950/70 p-8 text-center">
               <div className="mx-auto inline-flex h-32 w-32 items-center justify-center rounded-full bg-sky-500 text-4xl font-bold text-white shadow-lg shadow-sky-500/30">
-                {profile.level}
+                {calculatedLevel}
               </div>
-              <h2 className="mt-6 text-2xl font-semibold text-white">Your estimated CEFR level</h2>
-              <p className="mt-3 max-w-2xl mx-auto text-sm leading-7 text-slate-300">{profile.description}</p>
+              <h2 className="mt-6 text-2xl font-semibold text-white">Your Assessed CEFR Level</h2>
+              <p className="mt-3 max-w-2xl mx-auto text-sm leading-7 text-slate-300">
+                {levelProfiles[calculatedLevel]?.description}
+              </p>
             </div>
 
             <div className="rounded-3xl bg-slate-950/70 p-6">
-              <h3 className="text-lg font-semibold text-white">4-week learning path</h3>
+              <h3 className="text-lg font-semibold text-white">Suggested Focus Areas</h3>
               <ul className="mt-4 space-y-3 text-slate-200">
-                {profile.goals.map((goal) => (
-                  <li key={goal} className="rounded-3xl border border-slate-800 bg-slate-900/80 px-4 py-4 text-sm">
+                {levelProfiles[calculatedLevel]?.goals.map((goal, idx) => (
+                  <li key={idx} className="rounded-3xl border border-slate-800 bg-slate-900/80 px-4 py-4 text-sm">
                     {goal}
                   </li>
                 ))}
@@ -267,15 +310,15 @@ function OnboardingPage() {
 
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-sm text-slate-400">Job title: <span className="text-slate-100">{jobTitle}</span></p>
-                <p className="text-sm text-slate-400">English level: <span className="text-slate-100">{englishLevel}</span></p>
+                <p className="text-sm text-slate-400">Name: <span className="text-slate-100">{name}</span></p>
+                <p className="text-sm text-slate-400">Level: <span className="text-slate-100">{calculatedLevel}</span></p>
               </div>
               <button
                 type="button"
                 onClick={handleGoalStart}
                 className="inline-flex items-center justify-center rounded-3xl bg-emerald-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-emerald-400"
               >
-                ابدأ التعلم
+                Go to Home Page
               </button>
             </div>
           </div>
@@ -286,3 +329,4 @@ function OnboardingPage() {
 }
 
 export default OnboardingPage;
+

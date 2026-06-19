@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   backend:
-    build: .
+    build: ./backend
     container_name: edulingo-backend
     ports:
       - "8000:8000"
@@ -11,8 +11,6 @@ services:
       - SUPABASE_KEY=${SUPABASE_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - JWT_SECRET=${JWT_SECRET:-super-secret-key-change-in-prod}
-    volumes:
-      - ./rag/chroma_store:/app/rag/chroma_store
     restart: always
 
   frontend:

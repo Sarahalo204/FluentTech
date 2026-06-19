@@ -23,13 +23,23 @@ export const apiService = {
     return response.data;
   },
   
-  async login(learnerId) {
-    const response = await api.post('/auth/login', { learner_id: learnerId });
+  async login({ email, password }) {
+    const response = await api.post('/auth/login', { email, password });
     return response.data;
   },
 
   async updateLevel(learnerId, newLevel) {
     const response = await api.post('/auth/update_level', { learner_id: learnerId, new_level: newLevel });
+    return response.data;
+  },
+
+  async getProfile(learnerId) {
+    const response = await api.get(`/api/profile/${learnerId}`);
+    return response.data;
+  },
+
+  async updateProfile(learnerId, profileData) {
+    const response = await api.put(`/api/profile/${learnerId}`, profileData);
     return response.data;
   },
 

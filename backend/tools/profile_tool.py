@@ -1,12 +1,4 @@
-"""
-tools/profile_tool.py
----------------------
-أداة إدارة بروفايل المستخدم — يستخدمها Learning & Progress Agent.
-
-الاتصال بالـ DB:
-- تم الترقية إلى Supabase (PostgreSQL)
-
-"""
+""""""
 
 import json
 import os
@@ -15,7 +7,6 @@ from typing import Optional
 from langchain.tools import tool
 from supabase import create_client, Client
 
-# ─── اتصال بالـ DB ─────────────────────────────────────────────────────────
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
@@ -36,19 +27,18 @@ def init_db():
         # Just check if we can connect
         get_supabase()
 
-# ─── الـ Tools ──────────────────────────────────────────────────────────────
 
 @tool
 def create_learner_profile(
     learner_id: str,
     name: str,
+    email: str = "",
+    password_hash: str = "",
     target_level: str = "B2",
     learning_goals: str = "[]",
     preferred_topics: str = "[]"
 ) -> str:
-    """
-    ينشئ بروفايل جديد للمستخدم في قاعدة البيانات (Supabase).
-    """
+    """Create a new learner profile in the database."""
     if not learner_id or not learner_id.strip():
         return json.dumps({"status": "error", "message": "learner_id is required"})
     if not name or not name.strip():
@@ -69,6 +59,8 @@ def create_learner_profile(
         data = {
             "learner_id": learner_id,
             "name": name.strip(),
+            "email": email.strip() if email else None,
+            "password_hash": password_hash if password_hash else None,
             "target_level": target_level,
             "learning_goals": goals,
             "preferred_topics": topics,
@@ -95,6 +87,8 @@ def create_learner_profile(
                 CREATE TABLE IF NOT EXISTS learner_profiles (
                     learner_id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
+                    email TEXT UNIQUE,
+                    password_hash TEXT,
                     current_level TEXT DEFAULT 'A1',
                     target_level TEXT DEFAULT 'B2',
                     learning_goals TEXT DEFAULT '[]',
@@ -107,15 +101,22 @@ def create_learner_profile(
             """)
             now = datetime.utcnow().isoformat()
             cursor.execute("""
-                INSERT INTO learner_profiles (learner_id, name, target_level, learning_goals, preferred_topics, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO learner_profiles 
+                (learner_id, name, email, password_hash, target_level, learning_goals, preferred_topics, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(learner_id) DO UPDATE SET
                     name=excluded.name,
+                    email=excluded.email,
+                    password_hash=excluded.password_hash,
                     target_level=excluded.target_level,
                     learning_goals=excluded.learning_goals,
                     preferred_topics=excluded.preferred_topics,
                     updated_at=excluded.updated_at
-            """, (learner_id, name.strip(), target_level, json.dumps(goals), json.dumps(topics), now, now))
+            """, (
+                learner_id, name.strip(), email.strip() if email else None, password_hash if password_hash else None,
+                target_level, json.dumps(goals), json.dumps(topics),
+                now, now
+            ))
             conn.commit()
             conn.close()
             return json.dumps({
@@ -127,11 +128,34 @@ def create_learner_profile(
             return json.dumps({"status": "error", "message": f"Supabase error: {e}. SQLite error: {sqle}"})
 
 
+def get_learner_by_email(email: str) -> Optional[dict]:
+    """"""
+    try:
+        supabase = get_supabase()
+        response = supabase.table("learner_profiles").select("*").eq("email", email.strip()).execute()
+        if response.data:
+            return response.data[0]
+        return None
+    except Exception as e:
+        print(f"Fallback to SQLite get_learner_by_email: {e}")
+        try:
+            import sqlite3
+            conn = sqlite3.connect("edulingo.db")
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM learner_profiles WHERE email = ?", (email.strip(),))
+            row = cursor.fetchone()
+            conn.close()
+            if row:
+                return dict(row)
+            return None
+        except Exception as sqle:
+            print(f"SQLite error get_learner_by_email: {sqle}")
+            return None
+
 @tool
 def get_learner_profile(learner_id: str) -> str:
-    """
-    يجلب بروفايل المستخدم الكامل من Supabase.
-    """
+    """Get the learner's profile from the database."""
     try:
         supabase = get_supabase()
         response = supabase.table("learner_profiles").select("*").eq("learner_id", learner_id).execute()
@@ -174,9 +198,7 @@ def get_learner_profile(learner_id: str) -> str:
 
 @tool
 def update_learner_level(learner_id: str, new_level: str) -> str:
-    """
-    يُحدِّث مستوى CEFR للمستخدم.
-    """
+    """Update the learner's CEFR level."""
     if new_level not in VALID_LEVELS:
         return json.dumps({
             "status": "error",
@@ -224,9 +246,7 @@ def update_learner_level(learner_id: str, new_level: str) -> str:
 
 @tool
 def add_weak_area(learner_id: str, weakness: str) -> str:
-    """
-    يُضيف نقطة ضعف جديدة لبروفايل المستخدم.
-    """
+    """Add a new weak area to the learner's profile."""
     if not weakness or not weakness.strip():
         return json.dumps({"status": "error", "message": "weakness is required"})
 
@@ -297,9 +317,7 @@ def add_weak_area(learner_id: str, weakness: str) -> str:
 
 @tool
 def update_learning_goals(learner_id: str, goals: str) -> str:
-    """
-    يُحدِّث أهداف التعلم للمستخدم.
-    """
+    """Update the learner's learning goals."""
     try:
         parsed_goals = json.loads(goals)
         if not isinstance(parsed_goals, list):
@@ -348,9 +366,7 @@ def update_learning_goals(learner_id: str, goals: str) -> str:
 
 @tool
 def update_preferred_topics(learner_id: str, topics: str) -> str:
-    """
-    يُحدِّث المواضيع المفضلة للمستخدم.
-    """
+    """Update the learner's preferred topics."""
     try:
         parsed = json.loads(topics)
         if not isinstance(parsed, list):
@@ -399,9 +415,7 @@ def update_preferred_topics(learner_id: str, topics: str) -> str:
 
 @tool
 def get_session_history(learner_id: str, limit: int = 5) -> str:
-    """
-    يجلب آخر N جلسات للمستخدم من Supabase.
-    """
+    """Get the learner's session history."""
     try:
         supabase = get_supabase()
         response = supabase.table("sessions").select("session_id, session_type, duration_mins, created_at") \

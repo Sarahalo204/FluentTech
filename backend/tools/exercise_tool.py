@@ -1,20 +1,10 @@
-"""
-tools/exercise_tool.py
-----------------------
-أداة توليد التمارين — يستخدمها Conversation Agent و Roleplay Agent.
-
-لماذا نولد التمارين بالـ LLM وليس قاعدة بيانات ثابتة؟
-- التمارين تتكيف مع مستوى المستخدم الحالي
-- تأخذ بعين الاعتبار نقاط ضعفه المحددة
-- تتجنب التكرار بتوليد محتوى جديد في كل مرة
-"""
+""""""
 
 import json
 import random
 from langchain.tools import tool
 
 
-# ─── بيانات ثابتة للتمارين الجاهزة (Fallback) ─────────────────────────────
 
 INTERVIEW_QUESTIONS_BY_LEVEL = {
     "A1": [
@@ -100,24 +90,13 @@ VOCABULARY_TOPICS = {
 }
 
 
-# ─── الـ Tools ──────────────────────────────────────────────────────────────
 
 @tool
 def generate_interview_question(
     current_level: str = "B1",
     topic: str = "general"
 ) -> str:
-    """
-    يُولِّد سؤال مقابلة مناسب لمستوى المستخدم.
-
-    متى يستدعيها الـ Agent؟
-    - في بداية كل جلسة Roleplay من نوع job_interview
-    - عندما يطلب المستخدم ممارسة أسئلة المقابلات
-
-    Args:
-        current_level: مستوى CEFR الحالي للمستخدم
-        topic: موضوع السؤال (general, technical, behavioral)
-    """
+    """Generate a job interview question suitable for the learner."""
     level = current_level if current_level in INTERVIEW_QUESTIONS_BY_LEVEL else "B1"
     questions = INTERVIEW_QUESTIONS_BY_LEVEL[level]
 
@@ -143,18 +122,7 @@ def generate_grammar_exercise(
     current_level: str = "B1",
     weak_area: str = ""
 ) -> str:
-    """
-    يُولِّد تمرين Grammar مناسب لمستوى ونقطة ضعف المستخدم.
-
-    متى يستدعيها الـ Agent؟
-    - عند اكتشاف خطأ Grammar متكرر
-    - في جلسات الـ Conversation لتعزيز مفهوم معين
-
-    Args:
-        current_level: مستوى CEFR الحالي
-        weak_area: نقطة الضعف المحددة (مثال: "past tense", "articles")
-    """
-    # جرب إيجاد تمارين للمستوى
+    """Generate a grammar exercise suitable for the learner."""
     exercises = GRAMMAR_EXERCISES_BY_LEVEL.get(current_level, GRAMMAR_EXERCISES_BY_LEVEL["B1"])
     selected = random.choice(exercises)
 
@@ -165,8 +133,8 @@ def generate_grammar_exercise(
             "level": current_level,
             "question": selected["question"],
             "hint": "Think carefully before answering.",
-            "answer": selected["answer"],           # يُظهر للـ Agent فقط
-            "explanation": selected["explanation"]  # يُظهر بعد إجابة المستخدم
+            "answer": selected["answer"],
+            "explanation": selected["explanation"]
         }
     })
 
@@ -176,20 +144,9 @@ def generate_vocabulary_exercise(
     current_level: str = "B1",
     topic: str = "AI"
 ) -> str:
-    """
-    يُولِّد تمرين مفردات تقنية مناسب لمجال المستخدم.
-
-    متى يستدعيها الـ Agent؟
-    - عند بدء جلسة Conversation على موضوع تقني
-    - عند اكتشاف ضعف في المفردات التقنية
-
-    Args:
-        current_level: مستوى CEFR الحالي
-        topic: الموضوع التقني (AI, cloud, software, data)
-    """
+    """Generate a vocabulary exercise suitable for the learner."""
     vocab_list = VOCABULARY_TOPICS.get(topic, VOCABULARY_TOPICS["software"])
 
-    # اختر 5 كلمات عشوائية
     selected_words = random.sample(vocab_list, min(5, len(vocab_list)))
 
     return json.dumps({
@@ -213,17 +170,7 @@ def generate_email_writing_task(
     current_level: str = "B1",
     scenario: str = "project_update"
 ) -> str:
-    """
-    يُولِّد مهمة كتابة Email مهني.
-
-    متى يستدعيها الـ Agent؟
-    - في جلسات Conversation عند ممارسة الكتابة المهنية
-    - عند طلب المستخدم تحسين مهارات الكتابة
-
-    Args:
-        scenario: نوع الـ Email (project_update, meeting_request,
-                  status_report, follow_up)
-    """
+    """Generate an email writing task suitable for the learner."""
     scenarios = {
         "project_update": {
             "context": "You are a developer who just completed a major feature.",

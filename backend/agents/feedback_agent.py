@@ -1,20 +1,4 @@
-"""
-agents/feedback_agent.py
--------------------------
-Feedback & Evaluation Agent — المقيّم الذكي.
-
-مسؤولياته:
-1. تحليل نص المستخدم على 4 معايير
-2. تصحيح الأخطاء مع شرح تفصيلي
-3. توليد نسخة محسّنة من النص
-4. حساب Job Readiness Score
-5. استخدام RAG لسحب قواعد Grammar وقوالب مهنية
-6. استخراج Scores بشكل structured من رد الـ LLM
-
-لماذا RAG مهم هنا؟
-- بدون RAG: الـ LLM يعطي تصحيحات عامة من تدريبه فقط
-- مع RAG: التصحيحات مبنية على قواعد CEFR محددة وأمثلة مثبتة
-"""
+""""""
 
 import os
 import json
@@ -24,25 +8,16 @@ from langchain.agents import AgentExecutor, create_react_agent
 # from langchain_classic.agents import AgentExecutor, create_react_agent
 from langchain_core.prompts import PromptTemplate
 from langchain.tools import tool
-import chromadb
-
 from agents.state import AgentState, FeedbackResult
 from agents.llm_config import get_llm
 from tools.progress_tool import save_feedback_result
 
 
-# ─── إعداد الـ RAG ──────────────────────────────────────────────────────────
 
 from rag.retriever import retrieve
 
 def retrieve_context(query: str, n_results: int = 3) -> str:
-    """
-    يبحث في الـ Knowledge Base ويُرجع السياق الأكثر صلة.
-
-    Args:
-        query: ما يريد الـ Agent البحث عنه
-        n_results: عدد النتائج المطلوبة
-    """
+    """"""
     try:
         results = retrieve(query, top_k=n_results)
         
@@ -61,7 +36,6 @@ def retrieve_context(query: str, n_results: int = 3) -> str:
         return "Grammar reference not available. Using general knowledge."
 
 
-# ─── Built-in Grammar Rules (Fallback عند فشل RAG) ─────────────────────────
 
 BUILTIN_GRAMMAR_RULES = {
     "subject-verb agreement": (
@@ -91,20 +65,9 @@ BUILTIN_GRAMMAR_RULES = {
 
 @tool
 def search_grammar_rules(query: str) -> str:
-    """
-    يبحث في قاعدة المعرفة عن قواعد Grammar أو قوالب مهنية.
-
-    متى يستدعيها الـ Agent؟
-    - قبل تصحيح خطأ Grammar معين
-    - عند الحاجة لمثال على جملة مهنية صحيحة
-    - للتحقق من قاعدة CEFR معينة
-
-    Args:
-        query: وصف الخطأ أو القاعدة المطلوبة
-    """
+    """Search for grammar rules in the knowledge base."""
     context = retrieve_context(query)
 
-    # Fallback: لو الـ RAG فاضي، نستخدم القواعد المدمجة
     if "not available" in context or "error" in context.lower():
         query_lower = query.lower()
         for topic, rule in BUILTIN_GRAMMAR_RULES.items():
@@ -117,12 +80,7 @@ def search_grammar_rules(query: str) -> str:
 
 @tool
 def search_interview_examples(query: str) -> str:
-    """
-    يبحث عن أمثلة إجابات مقابلات من الـ Knowledge Base.
-
-    Args:
-        query: وصف السؤال أو الموضوع
-    """
+    """Search for interview examples in the knowledge base."""
     context = retrieve_context(f"interview answer example: {query}")
     return context
 
@@ -130,9 +88,11 @@ def search_interview_examples(query: str) -> str:
 FEEDBACK_TOOLS = [search_grammar_rules, search_interview_examples]
 
 
-# ─── Prompt الـ Feedback Agent ───────────────────────────────────────────────
 
-FEEDBACK_AGENT_PROMPT = PromptTemplate.from_template("""You are an expert English evaluator for Saudi tech learners preparing for careers in technology.
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+
+FEEDBACK_AGENT_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", """You are an expert English evaluator for Saudi tech learners preparing for careers in technology.
 
 Learner context:
 - Name: {learner_name}
@@ -142,11 +102,6 @@ Learner context:
 
 Conversation Summary (previous context):
 {context_summary}
-
-Available tools (use BEFORE writing feedback):
-{tools}
-
-Tool names: {tool_names}
 
 EVALUATION PROTOCOL:
 1. First, use search_grammar_rules to find relevant rules for any errors you notice
@@ -181,30 +136,16 @@ Score: XX/100
 
 ## EXCELLENT_VERSION
 [Show what a C1-level version would look like]
-
-Text to evaluate: {input}
-
-Thought: What errors do I see? What grammar rules should I search for?
-Action: [tool if needed]
-Action Input: [query]
-Observation: [result]
-... 
-Final Answer: [Complete evaluation in the format above]
-
-{agent_scratchpad}""")
+"""),
+    ("human", "Text to evaluate: {input}"),
+    MessagesPlaceholder(variable_name="agent_scratchpad"),
+])
 
 
 # ─── Score Parsing ──────────────────────────────────────────────────────────
 
 def _parse_scores(response: str) -> dict:
-    """
-    يستخرج الـ Scores من رد الـ Agent بشكل أقوى.
-
-    يدعم أنماط متعددة:
-    - "Grammar Accuracy: 7/10"
-    - "Grammar Accuracy: 7.5/10"
-    - "Grammar: 7 / 10"
-    """
+    """"""
     scores = {
         "grammar_score": 0.0,
         "vocabulary_score": 0.0,
@@ -214,11 +155,11 @@ def _parse_scores(response: str) -> dict:
     }
 
     patterns = {
-        "grammar_score": r"(?:Grammar|Grammar Accuracy)[:\s]*(\d+\.?\d*)\s*/\s*10",
-        "vocabulary_score": r"(?:Vocabulary|Vocabulary Range)[:\s]*(\d+\.?\d*)\s*/\s*10",
-        "clarity_score": r"(?:Clarity|Clarity & Structure|Clarity and Structure)[:\s]*(\d+\.?\d*)\s*/\s*10",
-        "tone_score": r"(?:Tone|Professional Tone)[:\s]*(\d+\.?\d*)\s*/\s*10",
-        "job_readiness_score": r"(?:Job Readiness|JOB_READINESS|Score)[:\s]*(\d+\.?\d*)\s*/\s*100",
+        "grammar_score": r"(?:Grammar|Grammar Accuracy|grammar)[\s\:]*(\d+\.?\d*)\s*(?:/|out of)?\s*10",
+        "vocabulary_score": r"(?:Vocabulary|Vocabulary Range|vocabulary)[\s\:]*(\d+\.?\d*)\s*(?:/|out of)?\s*10",
+        "clarity_score": r"(?:Clarity|Clarity & Structure|Clarity and Structure|clarity)[\s\:]*(\d+\.?\d*)\s*(?:/|out of)?\s*10",
+        "tone_score": r"(?:Tone|Professional Tone|tone)[\s\:]*(\d+\.?\d*)\s*(?:/|out of)?\s*10",
+        "job_readiness_score": r"(?:Job Readiness|JOB_READINESS|Score)[\s\:]*(\d+\.?\d*)\s*(?:/|out of)?\s*100",
     }
 
     for key, pattern in patterns.items():
@@ -233,14 +174,9 @@ def _parse_scores(response: str) -> dict:
 
 
 def _parse_section(response: str, section: str) -> str:
-    """
-    يستخرج محتوى section معين من رد الـ Agent.
-
-    Args:
-        response: رد الـ Agent الكامل
-        section: اسم الـ section (مثال: "CORRECTED_TEXT")
-    """
-    pattern = rf"##\s*{section}\s*\n(.*?)(?=##|\Z)"
+    """"""
+    # Allow #, ##, or ### and case-insensitivity
+    pattern = rf"#+\s*(?:{section})\s*\n(.*?)(?=\n#+|\Z)"
     match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
     if match:
         return match.group(1).strip()
@@ -248,7 +184,7 @@ def _parse_section(response: str, section: str) -> str:
 
 
 def _parse_corrections(response: str) -> list:
-    """يستخرج قائمة التصحيحات من رد الـ Agent."""
+    """"""
     corrections_text = _parse_section(response, "CORRECTIONS")
     if not corrections_text:
         return []
@@ -265,7 +201,7 @@ def _parse_corrections(response: str) -> list:
 
 
 def _parse_suggestions(response: str) -> list:
-    """يستخرج قائمة الاقتراحات من رد الـ Agent."""
+    """"""
     suggestions_text = _parse_section(response, "SUGGESTIONS")
     if not suggestions_text:
         return []
@@ -281,29 +217,15 @@ def _parse_suggestions(response: str) -> list:
     return suggestions
 
 
-# ─── الـ Agent Node ─────────────────────────────────────────────────────────
 
 def feedback_agent_node(state: AgentState) -> AgentState:
-    """
-    Feedback & Evaluation Agent Node.
-
-    ما الذي يجعله مختلفاً؟
-    1. يستخدم RAG قبل التقييم — تصحيحاته مبنية على مصادر
-    2. يُنتج تقييم شامل بتنسيق محدد
-    3. يحفظ النتائج في DB عبر save_feedback_result Tool
-    4. Structured score parsing بـ regex
-    5. يستخدم context_summary للسياق
-
-    الـ RAG Flow:
-    User Text → search_grammar_rules → Grammar Context → LLM → Structured Feedback
-    """
+    """"""
     profile = state.get("learner_profile", {})
     user_input = state.get("user_input", "")
     context_summary = state.get("context_summary", "No previous context.")
 
     current_level = profile.get("current_level", "B1") if profile else "B1"
 
-    # جلب سياق RAG مسبقاً (لتضمينه في الـ State)
     rag_context = retrieve_context(
         f"grammar rules for level {current_level} common mistakes"
     )
@@ -311,10 +233,11 @@ def feedback_agent_node(state: AgentState) -> AgentState:
     try:
         llm = get_llm("feedback")
 
-        # الـ Tools تشمل RAG Tools + Progress Tool لحفظ النتائج
         all_tools = FEEDBACK_TOOLS + [save_feedback_result]
 
-        agent = create_react_agent(
+        from langchain.agents import create_tool_calling_agent
+
+        agent = create_tool_calling_agent(
             llm=llm,
             tools=all_tools,
             prompt=FEEDBACK_AGENT_PROMPT,
@@ -357,6 +280,20 @@ def feedback_agent_node(state: AgentState) -> AgentState:
             "suggestions": suggestions,
             "rag_sources": ["knowledge_base/grammar_rules.md"],
         }
+
+        neat_response = f"🎯 **Excellent effort! Here is your technical evaluation:**\n\n"
+        neat_response += f"**Corrected Text:**\n{corrected_text}\n\n**Corrections:**\n"
+        for c in corrections:
+            neat_response += f"- {c}\n"
+        
+        neat_response += f"\n📊 **Scores:**\n- Grammar: {scores['grammar_score']}/10\n- Vocabulary: {scores['vocabulary_score']}/10\n- Clarity: {scores['clarity_score']}/10\n- Professionalism: {scores['tone_score']}/10\n"
+        
+        if suggestions:
+            neat_response += f"\n💡 **Pro Tips for Improvement:**\n"
+            for s in suggestions:
+                neat_response += f"- {s}\n"
+                
+        agent_response = neat_response
 
     except Exception as e:
         import traceback

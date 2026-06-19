@@ -40,7 +40,7 @@ EduLingo solves all of this through a conversational AI coach that remembers, ad
        │                      │                        │
        ▼                      ▼                        ▼
 ┌─────────────┐   ┌───────────────────────┐   ┌───────────────────┐
-│  PostgreSQL │   │    LANGGRAPH ENGINE    │   │    CHROMA DB      │
+│  PostgreSQL │   │    LANGGRAPH ENGINE    │   │   SUPABASE DB     │
 │             │   │                       │   │   (Vector Store)  │
 │  learners   │   │   ┌───────────────┐   │   │                   │
 │  profiles   │   │   │  SUPERVISOR   │   │   │  CEFR Levels      │
@@ -172,7 +172,7 @@ The Retrieval-Augmented Generation system grounds the agents' responses in struc
 | **LLM** | OpenAI GPT-4o or mistralai/Mistral-7B-Instruct-v0.3|
 | **Backend API** | FastAPI |
 | **Database** | PostgreSQL |
-| **Vector Store** | ChromaDB |
+| **Vector Store** | Supabase pgvector |
 | **Embeddings** | OpenAI text-embedding-3-small or BAAI/bge-small-en-v1.5 |
 | **Frontend** | React |
 | **Authentication** | JWT |
@@ -185,46 +185,29 @@ The Retrieval-Augmented Generation system grounds the agents' responses in struc
 ## 📁 Project Structure
 
 ```
-edulingo/
+FluentTech/
 │
-├── agents/                     # LangGraph agent definitions
-│   ├── supervisor.py           # Supervisor node + routing logic
-│   ├── learning_agent.py       # Learning & Progress Agent
-│   ├── conversation_agent.py   # Conversation Agent
-│   ├── roleplay_agent.py       # Roleplay Agent
-│   └── feedback_agent.py       # Feedback & Evaluation Agent
+├── backend/                    # FastAPI & LangGraph AI Backend
+│   ├── agents/                 # Agent definitions (supervisor, roleplay, etc.)
+│   ├── tools/                  # Agent tools (profile, progress, etc.)
+│   ├── rag/                    # RAG pipeline & retriever
+│   ├── knowledge_base/         # Source documents for RAG
+│   ├── server.py               # FastAPI entry point
+│   ├── edulingo.db             # SQLite Database (Local fallback)
+│   ├── Dockerfile              # Backend container config
+│   ├── .env                    # Environment variables
+│   └── requirements.txt        # Python dependencies
 │
-├── tools/                      # Agent tools
-│   ├── profile_tool.py         # Learner profile CRUD
-│   ├── progress_tool.py        # Progress tracking
-│   └── exercise_tool.py        # Exercise generation
+├── frontend/                   # React/Vite application
+│   ├── src/                    # UI code (Chat, Profile, Onboarding)
+│   ├── package.json            # Node dependencies
+│   └── vite.config.js          # Vite config (proxies /api to backend)
 │
-├── rag/                        # RAG pipeline
-│   ├── knowledge_base/         # Source documents
-│   ├── ingest.py               # Chunking + embedding pipeline
-│   └── retriever.py            # Chroma retriever
-│
-├── backend/                    # FastAPI application
-│   ├── main.py                 # App entry point
-│   ├── routes/                 # API route handlers
-│   ├── models/                 # DB models (SQLAlchemy)
-│   ├── schemas/                # Pydantic schemas
-│   └── auth/                   # JWT authentication
-│
-├── frontend/                   # React application
-│   ├── src/
-│   │   ├── pages/              # Chat, Profile, Dashboard
-│   │   ├── components/         # Reusable UI components
-│   │   └── api/                # API integration layer
-│
-├── db/
-│   └── schema.sql              # PostgreSQL schema
+├── evaluation_results/         # Automated test logs and agent evaluations
 │
 ├── docker-compose.yml          # Full stack orchestration
-├── Dockerfile.backend
-├── Dockerfile.frontend
-├── .env.example
-└── requirements.txt
+├── README.md                   # Documentation
+└── .gitignore
 ```
 
 ---
@@ -250,13 +233,10 @@ cp .env.example .env
 ```
 
 ```env
-OPENAI_API_KEY=your_openai_key
-or
-huggingfacehub_api_token=your_HF_TOKEN
-DATABASE_URL=postgresql://user:password@localhost:5432/edulingo
-CHROMA_PATH=./rag/chroma_store
-JWT_SECRET=your_secret_key
-
+GROQ_API_KEY=gsk_your_groq_api_key_here
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_KEY=your_supabase_api_key
+JWT_SECRET=your_secret_key_for_auth
 ```
 
 ### 3. Run with Docker

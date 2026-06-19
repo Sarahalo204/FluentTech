@@ -1,10 +1,4 @@
-"""
-tools/progress_tool.py
-----------------------
-أداة تتبع التقدم — يستخدمها Learning & Progress Agent.
-
-تمت الترقية إلى Supabase (PostgreSQL).
-"""
+""""""
 
 import json
 import os
@@ -38,9 +32,7 @@ def log_session(
     session_type: str,
     duration_mins: int = 0
 ) -> str:
-    """
-    يُسجِّل جلسة مكتملة في قاعدة البيانات Supabase.
-    """
+    """Log a completed session to the database."""
     try:
         supabase = get_supabase()
         now = datetime.utcnow().isoformat()
@@ -117,9 +109,7 @@ def save_feedback_result(
     job_readiness_score: float,
     mistakes: str  # JSON array string
 ) -> str:
-    """
-    يحفظ نتيجة الـ Feedback في قاعدة بيانات Supabase.
-    """
+    """Save feedback result to the database."""
     try:
         parsed_mistakes = json.loads(mistakes)
     except Exception:
@@ -174,21 +164,17 @@ def save_feedback_result(
 
 @tool
 def get_weekly_summary(learner_id: str) -> str:
-    """
-    يُنشئ ملخص أسبوعي للمستخدم من Supabase.
-    """
+    """Generate a weekly summary for the learner."""
     try:
         supabase = get_supabase()
         week_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
 
-        # جلسات الأسبوع
         sessions_res = supabase.table("sessions").select("id", count="exact") \
             .eq("learner_id", learner_id) \
             .gte("created_at", week_ago).execute()
         
         sessions_count = sessions_res.count if sessions_res.count is not None else 0
 
-        # درجات الأسبوع
         feedback_res = supabase.table("feedback_history").select("*") \
             .eq("learner_id", learner_id) \
             .gte("created_at", week_ago).execute()
@@ -204,14 +190,12 @@ def get_weekly_summary(learner_id: str) -> str:
         else:
             avg_grammar = avg_vocab = avg_clarity = avg_tone = avg_job_readiness = 0
 
-        # استخراج الأخطاء
         all_mistakes = []
         for f in feedbacks:
             corr = f.get("corrections", [])
             if isinstance(corr, list):
                 all_mistakes.extend(corr)
 
-        # حساب التكرار
         mistake_counts = {}
         for m in all_mistakes:
             m_str = json.dumps(m) if isinstance(m, dict) else str(m)
@@ -295,9 +279,7 @@ def get_weekly_summary(learner_id: str) -> str:
 
 @tool
 def get_recurring_mistakes(learner_id: str, limit: int = 5) -> str:
-    """
-    يُرجع أكثر الأخطاء تكراراً للمستخدم على مدار كل جلساته من Supabase.
-    """
+    """Get the most recurring mistakes for the learner."""
     try:
         supabase = get_supabase()
         
@@ -374,9 +356,7 @@ def get_recurring_mistakes(learner_id: str, limit: int = 5) -> str:
 
 @tool
 def generate_next_steps(learner_id: str) -> str:
-    """
-    يُولِّد الخطوات القادمة المقترحة بناءً على أداء المستخدم.
-    """
+    """Generate the next steps based on learner performance."""
     try:
         summary_result = json.loads(get_weekly_summary.invoke({"learner_id": learner_id}))
 

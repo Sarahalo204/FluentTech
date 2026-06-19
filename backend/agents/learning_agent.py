@@ -1,19 +1,4 @@
-"""
-agents/learning_agent.py
-------------------------
-Learning & Progress Agent — دماغ النظام.
-
-مسؤولياته:
-1. تشخيص مستوى CEFR للمستخدم عبر أسئلة تدريجية (5 أسئلة)
-2. تحديد الأهداف مع المستخدم
-3. توليد خطة تعلم أسبوعية مخصصة
-4. عرض ملخص التقدم
-5. تحديث البروفايل في DB عبر الـ Tools
-
-لماذا هو الـ Agent الافتراضي (Fallback)؟
-- أول شيء يحتاجه أي مستخدم جديد هو التشخيص
-- بدون معرفة المستوى، بقية الـ Agents لا تعمل بشكل صحيح
-"""
+""""""
 
 import os
 import json
@@ -27,13 +12,10 @@ from tools.profile_tool import PROFILE_TOOLS
 from tools.progress_tool import PROGRESS_TOOLS
 
 
-# ─── Tools للـ Learning Agent ───────────────────────────────────────────────
-# يستخدم Profile Tools + Progress Tools
 LEARNING_AGENT_TOOLS = PROFILE_TOOLS + PROGRESS_TOOLS
 
 
 # ─── Assessment Questions Bank ─────────────────────────────────────────────
-# أسئلة تشخيص متدرجة — الـ Agent يختار السؤال المناسب بناءً على الرد السابق
 
 ASSESSMENT_RUBRIC = """
 ASSESSMENT SCORING RUBRIC:
@@ -46,20 +28,17 @@ ASSESSMENT SCORING RUBRIC:
 """
 
 
-# ─── Prompt للـ Learning Agent ──────────────────────────────────────────────
 
-LEARNING_AGENT_PROMPT = PromptTemplate.from_template("""You are a friendly and professional English Learning Coach for Saudi tech learners.
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+
+LEARNING_AGENT_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", """You are a Senior Silicon Valley Career Strategist & Language Assessor.
+You specialize in evaluating Saudi tech professionals and designing elite, highly effective English learning roadmaps.
 
 Your personality:
-- Encouraging and patient
-- Clear and structured in your explanations
-- Focused on practical, career-oriented English
-- Aware of challenges Arabic speakers face in English (articles, verb tenses, prepositions)
-
-Your available tools:
-{tools}
-
-Tool names: {tool_names}
+- Authoritative, deeply analytical, and highly structured.
+- Professional, yet supportive and empowering.
+- You understand the specific linguistic challenges Arabic speakers face in technical English.
 
 Current learner context:
 - Learner ID: {learner_id}
@@ -75,49 +54,50 @@ Conversation Summary (previous context):
 
 {assessment_protocol}
 
+CRITICAL ASSESSMENT RULE:
+If the user's message is a valid attempt at answering your assessment question, you MUST include the exact string "[VALID_ANSWER]" somewhere in your response. If they are just asking a clarifying question, chatting off-topic, or refusing to answer, DO NOT include this marker.
+
 WEEKLY PLAN FORMAT (when user asks for a plan):
-Based on learner's weak areas and recurring mistakes, create:
-Day 1-2: [Grammar focus — target specific weak areas]
-Day 3-4: [Conversation practice — topics from preferred_topics]
-Day 5: [Roleplay practice — workplace scenarios]
-Day 6: [Writing practice — professional emails]
-Day 7: [Review — vocabulary and grammar quiz]
+Based on the learner's weak areas and recurring mistakes, you MUST use the provided tools (e.g., update_learning_goals, add_weak_area) BEFORE generating the plan. Then, output the plan using beautiful, structured Markdown:
 
-Include estimated time per session (15-30 mins).
+### 🚀 Your Elite Weekly Learning Plan
+*Targeted to improve: [List 2-3 weak areas]*
 
-Use ReAct format:
-Thought: [your reasoning]
-Action: [tool name]
-Action Input: [tool input as JSON]
-Observation: [tool result]
-... (repeat as needed)
-Final Answer: [your response to the learner]
+**📅 Day 1-2: Core Foundation**
+- **Grammar/Structure:** [Target specific weak areas]
+- *Time:* 20 mins
 
-User message: {input}
-{agent_scratchpad}""")
+**📅 Day 3-4: Tech Immersion**
+- **Conversation Practice:** [Topics from preferred_topics]
+- *Time:* 25 mins
+
+**📅 Day 5: Scenario Simulation**
+- **Roleplay Practice:** [Workplace scenarios]
+- *Time:* 30 mins
+
+**📅 Day 6: Professional Output**
+- **Writing Practice:** [Professional emails/docs]
+- *Time:* 20 mins
+
+**📅 Day 7: Retrospective & Review**
+- **Assessment:** [Vocabulary and grammar review]
+- *Time:* 15 mins
+
+Include actionable advice on how to integrate this into a busy engineering schedule."""),
+    ("human", "User message: {input}"),
+    MessagesPlaceholder(variable_name="agent_scratchpad"),
+])
 
 
-# ─── الـ Agent Node ─────────────────────────────────────────────────────────
 
 def learning_agent_node(state: AgentState) -> AgentState:
-    """
-    Learning & Progress Agent Node.
-
-    الخطوات:
-    1. يستخرج السياق من الـ State (بما فيه context_summary)
-    2. يحدد Assessment Protocol إذا التشخيص لم يكتمل
-    3. يُنشئ ReAct Agent مع الـ Tools
-    4. يُشغّل الـ Agent على رسالة المستخدم
-    5. الـ Agent يستخدم الـ Tools (قراءة/كتابة DB) حسب الحاجة
-    6. يُحدِّث الـ State بالرد والمعلومات الجديدة
-    """
+    """"""
     profile = state.get("learner_profile")
     user_input = state.get("user_input", "")
     assessment_complete = state.get("assessment_complete", False)
     questions_asked = state.get("assessment_questions_asked", 0)
     context_summary = state.get("context_summary", "No previous context.")
 
-    # استخرج السياق للـ Prompt
     context = {
         "learner_id": profile["learner_id"] if profile else "unknown",
         "has_profile": profile is not None,
@@ -130,7 +110,6 @@ def learning_agent_node(state: AgentState) -> AgentState:
         "context_summary": context_summary,
     }
 
-    # Assessment Protocol — يتغير بناءً على المرحلة
     if not assessment_complete:
         if questions_asked == 0:
             assessment_protocol = f"""ASSESSMENT PROTOCOL — STAGE 1 (Introduction):
@@ -163,8 +142,8 @@ You've asked {questions_asked} questions. Now:
     try:
         llm = get_llm("learning")
 
-        # إنشاء ReAct Agent
-        agent = create_react_agent(
+        from langchain.agents import create_tool_calling_agent
+        agent = create_tool_calling_agent(
             llm=llm,
             tools=LEARNING_AGENT_TOOLS,
             prompt=LEARNING_AGENT_PROMPT,
@@ -178,7 +157,6 @@ You've asked {questions_asked} questions. Now:
             handle_parsing_errors=True,
         )
 
-        # تشغيل الـ Agent
         result = executor.invoke({
             "input": user_input,
             "assessment_protocol": assessment_protocol,
@@ -187,11 +165,14 @@ You've asked {questions_asked} questions. Now:
 
         agent_response = result.get("output", "I'm sorry, I couldn't process your request.")
 
-        # تحديث عداد أسئلة التشخيص
         if not assessment_complete:
-            questions_asked += 1
-            if questions_asked >= MAX_ASSESSMENT_QUESTIONS:
-                assessment_complete = True
+            if "[VALID_ANSWER]" in agent_response:
+                questions_asked += 1
+                if questions_asked >= MAX_ASSESSMENT_QUESTIONS:
+                    assessment_complete = True
+            
+        # Clean up marker before showing to user
+        agent_response = agent_response.replace("[VALID_ANSWER]", "").strip()
 
     except Exception as e:
         agent_response = (
@@ -199,7 +180,6 @@ You've asked {questions_asked} questions. Now:
             "Could you tell me a bit about your English learning goals?"
         )
 
-    # تحديث قائمة الرسائل بإضافة رد الـ Agent
     messages = list(state.get("messages", []))
     messages.append({"role": "assistant", "content": agent_response})
 

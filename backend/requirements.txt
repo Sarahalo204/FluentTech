@@ -25,14 +25,14 @@ langchain-groq==0.2.1           # فكي الهاش لو بتستخدمون نم
 # ─── Frontend (UI) ──────────────────────────────────────────
 streamlit==1.40.0                 # 🛑 ناقص ومهم لتشغيل واجهة الـ Streamlit (app.py)
 
-# ─── Vector Database (RAG) ──────────────────────────────────
-chromadb==0.5.20
+# ─── LLM Local Execution ────────────────────────────────────
+accelerate>=0.26.0                # Required for CPU device mapping in Transformers
 
+# ─── Vector Database (RAG) ──────────────────────────────────
 # ─── Backend (FastAPI) ──────────────────────────────────────
 fastapi==0.115.5
 uvicorn[standard]==0.32.1
 python-multipart==0.0.12          # لرفع الملفات في FastAPI
-
 # ─── Database & ORM ─────────────────────────────────────────
 sqlalchemy==2.0.35          # ORM
 greenlet==3.1.1                   # 🛑 مطلوب لدعم ميزات الـ Async في SQLAlchemy مع Postgres

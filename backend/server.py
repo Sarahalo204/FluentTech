@@ -2,6 +2,7 @@ import uuid
 import json
 import os
 import jwt
+import hashlib
 from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException, Depends, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -9,18 +10,40 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 
-# Import tools and agents
-from tools.profile_tool import create_learner_profile, get_learner_profile, init_db, update_learner_level, get_supabase
+import ssl
+try:
+    _create_unverified_https_context = ssl._create_unverified_context
+except AttributeError:
+    pass
+else:
+    ssl._create_default_https_context = _create_unverified_https_context
+
+from dotenv import load_dotenv
+load_dotenv()
+
+from tools.profile_tool import create_learner_profile, get_learner_profile, init_db, update_learner_level, get_supabase, update_learning_goals, update_preferred_topics, get_learner_by_email
 from tools.progress_tool import get_weekly_summary, get_recurring_mistakes, generate_next_steps, log_session, init_progress_db
 from tools.exercise_tool import generate_interview_question, generate_grammar_exercise, generate_vocabulary_exercise, generate_email_writing_task
 from agents import run_agent
 from agents.state import create_initial_state
+from agents.guardrails import validate_input, validate_output
+
+from langchain.globals import set_debug, set_verbose
+set_debug(True)
+set_verbose(True)
 
 app = FastAPI(title="EduLingo API")
 
 JWT_SECRET = os.getenv("JWT_SECRET", "super-secret-key-change-in-prod")
 JWT_ALGORITHM = "HS256"
 security = HTTPBearer()
+
+def get_password_hash(password: str) -> str:
+    # Use simple SHA256 hashing for compatibility
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return get_password_hash(plain_password) == hashed_password
 
 def create_access_token(data: dict):
     to_encode = data.copy()
@@ -88,16 +111,25 @@ sessions: Dict[str, Any] = {}
 
 class RegisterRequest(BaseModel):
     name: str
+    email: str
+    password: str
     target_level: str
     learning_goals: List[str]
     preferred_topics: List[str]
 
 class LoginRequest(BaseModel):
-    learner_id: str
+    email: str
+    password: str
 
 class UpdateLevelRequest(BaseModel):
     learner_id: str
     new_level: str
+
+class ProfileUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    target_level: Optional[str] = None
+    learning_goals: Optional[List[str]] = None
+    preferred_topics: Optional[List[str]] = None
 
 class ChatRequest(BaseModel):
     learner_id: str
@@ -111,38 +143,52 @@ class ExerciseRequest(BaseModel):
     topic_or_weakness: Optional[str] = None
 
 @app.post("/auth/register")
-def register(req: RegisterRequest):
-    learner_id = f"user_{uuid.uuid4().hex[:6]}"
+async def register(req: RegisterRequest):
+    # Check if user already exists
+    existing_user = get_learner_by_email(req.email)
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    new_id = f"usr_{uuid.uuid4().hex[:8]}"
+    hashed_pw = get_password_hash(req.password)
     
-    result_str = create_learner_profile.invoke({
-        "learner_id": learner_id,
+    res_str = create_learner_profile.invoke({
+        "learner_id": new_id,
         "name": req.name,
+        "email": req.email,
+        "password_hash": hashed_pw,
         "target_level": req.target_level,
         "learning_goals": json.dumps(req.learning_goals),
         "preferred_topics": json.dumps(req.preferred_topics)
     })
+    res = json.loads(res_str)
     
-    res = json.loads(result_str)
-    if res["status"] == "error":
-        raise HTTPException(status_code=400, detail=res["message"])
-        
-    token = create_access_token({"sub": learner_id})
-    return {"access_token": token, "learner_id": learner_id, "name": req.name, "level": "A1"}
+    if res.get("status") == "error":
+        raise HTTPException(status_code=400, detail=res.get("message"))
+    
+    token = create_access_token({"sub": new_id})
+    return {
+        "learner_id": new_id,
+        "name": req.name,
+        "level": "A1",
+        "access_token": token
+    }
 
 @app.post("/auth/login")
-def login(req: LoginRequest):
-    result_str = get_learner_profile.invoke({"learner_id": req.learner_id})
-    res = json.loads(result_str)
-    if res["status"] == "error":
-        raise HTTPException(status_code=404, detail="User not found")
+async def login(req: LoginRequest):
+    user = get_learner_by_email(req.email)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
         
-    profile = res["profile"]
-    token = create_access_token({"sub": req.learner_id})
+    if not user.get("password_hash") or not verify_password(req.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    token = create_access_token({"sub": user["learner_id"]})
     return {
-        "access_token": token,
-        "learner_id": req.learner_id, 
-        "name": profile.get("name"), 
-        "level": profile.get("current_level", "A1")
+        "learner_id": user["learner_id"],
+        "name": user["name"],
+        "level": user.get("current_level", "A1"),
+        "access_token": token
     }
 
 @app.post("/auth/update_level")
@@ -156,6 +202,63 @@ def update_level(req: UpdateLevelRequest, token_learner_id: str = Depends(verify
     if res["status"] == "error":
         raise HTTPException(status_code=400, detail=res["message"])
     return {"status": "success", "level": req.new_level}
+
+@app.get("/api/profile/{learner_id}")
+def get_profile(learner_id: str, token_learner_id: str = Depends(verify_token)):
+    if learner_id != token_learner_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    res = json.loads(get_learner_profile.invoke({"learner_id": learner_id}))
+    if res["status"] == "error":
+        raise HTTPException(status_code=404, detail="User not found")
+    return res["profile"]
+
+@app.put("/api/profile/{learner_id}")
+def update_profile(learner_id: str, req: ProfileUpdateRequest, token_learner_id: str = Depends(verify_token)):
+    if learner_id != token_learner_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # For name and target_level we use Supabase with SQLite fallback.
+    try:
+        update_data = {}
+        if req.name is not None:
+            update_data["name"] = req.name
+        if req.target_level is not None:
+            update_data["target_level"] = req.target_level
+            
+        if update_data:
+            update_data["updated_at"] = datetime.utcnow().isoformat()
+            try:
+                supabase = get_supabase()
+                supabase.table("learner_profiles").update(update_data).eq("learner_id", learner_id).execute()
+            except Exception as e:
+                # SQLite fallback
+                import sqlite3
+                conn = sqlite3.connect("edulingo.db")
+                cursor = conn.cursor()
+                
+                query_parts = []
+                params = []
+                for k, v in update_data.items():
+                    query_parts.append(f"{k} = ?")
+                    params.append(v)
+                
+                params.append(learner_id)
+                query = "UPDATE learner_profiles SET " + ", ".join(query_parts) + " WHERE learner_id = ?"
+                
+                cursor.execute(query, tuple(params))
+                conn.commit()
+                conn.close()
+                print(f"Fallback to SQLite update_profile: {e}")
+            
+        if req.learning_goals is not None:
+            update_learning_goals.invoke({"learner_id": learner_id, "goals": json.dumps(req.learning_goals)})
+            
+        if req.preferred_topics is not None:
+            update_preferred_topics.invoke({"learner_id": learner_id, "topics": json.dumps(req.preferred_topics)})
+            
+        return {"status": "success", "message": "Profile updated"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chat")
 def chat(req: ChatRequest, token_learner_id: str = Depends(verify_token)):
@@ -172,6 +275,15 @@ def chat(req: ChatRequest, token_learner_id: str = Depends(verify_token)):
         sessions[req.session_id] = create_initial_state(req.learner_id, req.user_input, profile)
         
     state = sessions[req.session_id]
+    
+    # --- Guardrails: Input Validation ---
+    validation_result = validate_input(req.user_input)
+    if not validation_result["is_safe"]:
+        return {
+            "response": validation_result["message"],
+            "agent_used": "guardrail_rejected",
+            "feedback": None
+        }
     
     try:
         result = run_agent(
@@ -193,8 +305,11 @@ def chat(req: ChatRequest, token_learner_id: str = Depends(verify_token)):
         # Save Long-term memory to Supabase DB (Task 10)
         save_long_term_memory(req.learner_id, req.session_id, sessions[req.session_id])
         
+        # --- Guardrails: Output Validation ---
+        final_response = validate_output(result.get("response", "Error processing request."))
+        
         return {
-            "response": result.get("response", "Error processing request."),
+            "response": final_response,
             "agent_used": agent_used,
             "feedback": result.get("feedback")
         }
