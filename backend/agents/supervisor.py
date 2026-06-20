@@ -72,7 +72,7 @@ def supervisor_node(state: AgentState) -> AgentState:
     # ─── Turn Guard ──────────────────────────────────────────────────────────
     messages = state.get("messages", [])
     current_session = state.get("current_session_type")
-    if current_session and messages and messages[-1].get("role") == "assistant":
+    if messages and messages[-1].get("role") == "assistant":
         return {
             **state,
             "next_agent": "end",
@@ -93,7 +93,7 @@ def supervisor_node(state: AgentState) -> AgentState:
 
     profile = state.get("learner_profile")
     has_profile = profile is not None
-    current_level = profile["current_level"] if has_profile else "Unknown"
+    current_level = profile.get("current_level", "Unknown") if has_profile else "Unknown"
     target_level = profile.get("target_level", "B2") if has_profile else "B2"
     assessment_complete = state.get("assessment_complete", False)
     current_session_type = current_session if current_session else "None"

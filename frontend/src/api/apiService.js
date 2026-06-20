@@ -64,6 +64,11 @@ export const apiService = {
     };
   },
 
+  async getTTS(text) {
+    const response = await api.post('/api/tts', { text }, { responseType: 'blob' });
+    return response.data;
+  },
+
   // --- Exercises ---
   async generateExercise(learnerId, exerciseType, topicOrWeakness) {
     const response = await api.post('/api/exercises', {

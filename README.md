@@ -193,7 +193,6 @@ FluentTech/
 │   ├── rag/                    # RAG pipeline & retriever
 │   ├── knowledge_base/         # Source documents for RAG
 │   ├── server.py               # FastAPI entry point
-│   ├── edulingo.db             # SQLite Database (Local fallback)
 │   ├── Dockerfile              # Backend container config
 │   ├── .env                    # Environment variables
 │   └── requirements.txt        # Python dependencies
@@ -233,7 +232,7 @@ cp .env.example .env
 ```
 
 ```env
-GROQ_API_KEY=gsk_your_groq_api_key_here
+OPENAI_API_KEY=sk_your_openai_api_key_here
 SUPABASE_URL=your_supabase_project_url
 SUPABASE_KEY=your_supabase_api_key
 JWT_SECRET=your_secret_key_for_auth

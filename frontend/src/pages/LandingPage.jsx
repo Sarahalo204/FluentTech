@@ -44,7 +44,21 @@ function LandingPage() {
   return (
     <div className="landing-page">
       <style>{`
-        :root {
+        .landing-page {
+          color-scheme: light;
+          --bg: #ffffff;
+          --surface: #f8fafc;
+          --surface-strong: #f1f5f9;
+          --text: #0f172a;
+          --muted: #64748b;
+          --accent: #4f46e5;
+          --accent-soft: rgba(79, 70, 229, 0.1);
+          --gold: #d97706;
+          --gold-soft: rgba(217, 119, 6, 0.1);
+          --radius: 28px;
+          font-family: "Inter", "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .dark .landing-page {
           color-scheme: dark;
           --bg: #0a0a0f;
           --surface: #10121c;
@@ -55,12 +69,9 @@ function LandingPage() {
           --accent-soft: rgba(99, 102, 241, 0.18);
           --gold: #f59e0b;
           --gold-soft: rgba(245, 158, 11, 0.16);
-          --radius: 28px;
-          font-family: "Inter", "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
         * { box-sizing: border-box; }
-        html, body { margin: 0; min-height: 100%; background: var(--bg); }
-        body { overflow-x: hidden; }
+        .landing-page { background: var(--bg); transition: background-color 0.3s ease, color 0.3s ease; }
         .page-wrapper { max-width: 1300px; margin: 0 auto; padding: 32px 24px 64px; }
         .topbar { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 2rem; }
         .brand { display: inline-flex; align-items: center; gap: 12px; font-size: 1.05rem; font-weight: 700; letter-spacing: 0.04em; }
@@ -81,14 +92,14 @@ function LandingPage() {
         .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 22px 44px rgba(99, 102, 241, 0.26); }
         .btn-secondary { background: transparent; color: var(--text); border-color: rgba(255,255,255,0.16); }
         .btn-secondary:hover { background: rgba(255,255,255,0.06); }
-        .hero-panel { position: relative; padding: 2rem; border-radius: 40px; background: radial-gradient(circle at top left, rgba(99, 102, 241, 0.18), transparent 38%), radial-gradient(circle at bottom right, rgba(245, 158, 11, 0.14), transparent 34%), linear-gradient(180deg, rgba(15, 23, 42, 0.9), rgba(10, 10, 15, 0.98)); border: 1px solid rgba(255,255,255,0.06); overflow: hidden; }
+        .hero-panel { position: relative; padding: 2rem; border-radius: 40px; background: radial-gradient(circle at top left, var(--accent-soft), transparent 38%), radial-gradient(circle at bottom right, var(--gold-soft), transparent 34%), var(--surface-strong); border: 1px solid rgba(150,150,150,0.1); overflow: hidden; }
         .panel-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 26px; }
         .panel-tag { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; border-radius: 999px; background: rgba(99, 102, 241, 0.14); color: var(--accent); font-size: 0.9rem; font-weight: 700; }
         .panel-status { color: var(--muted); font-size: 0.92rem; }
-        .chat-card { border-radius: 32px; background: rgba(15, 23, 42, 0.92); border: 1px solid rgba(255,255,255,0.07); padding: 26px 26px 28px; min-height: 420px; display: grid; gap: 22px; }
+        .chat-card { border-radius: 32px; background: var(--surface); border: 1px solid rgba(150,150,150,0.1); padding: 26px 26px 28px; min-height: 420px; display: grid; gap: 22px; }
         .chat-message { position: relative; padding: 18px 22px; border-radius: 28px; line-height: 1.7; font-size: 0.95rem; }
-        .chat-message.learner { background: rgba(255,255,255,0.06); align-self: start; color: #e2e8f0; }
-        .chat-message.coach { background: linear-gradient(135deg, rgba(99, 102, 241, 0.16), rgba(245, 158, 11, 0.12)); color: #f8fafc; }
+        .chat-message.learner { background: var(--surface-strong); align-self: start; color: var(--text); }
+        .chat-message.coach { background: linear-gradient(135deg, var(--accent-soft), var(--gold-soft)); color: var(--text); }
         .chat-message::before { content: ''; position: absolute; width: 10px; height: 10px; border-radius: 50%; top: 18px; left: -4px; background: rgba(255,255,255,0.08); }
         .chat-message.coach::before { left: unset; right: -4px; background: rgba(99, 102, 241, 0.55); }
         .chat-meta { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 0.82rem; }
@@ -102,17 +113,17 @@ function LandingPage() {
         .section-copy { max-width: 620px; color: var(--muted); line-height: 1.8; margin-bottom: 2rem; }
         .stat-grid, .how-grid, .agent-grid { display: grid; gap: 18px; }
         .stat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-        .stat-card { padding: 28px; border-radius: 28px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
+        .stat-card { padding: 28px; border-radius: 28px; background: var(--surface-strong); border: 1px solid rgba(150,150,150,0.1); }
         .stat-number { font-size: 2.5rem; font-weight: 800; letter-spacing: -0.04em; margin-bottom: 0.65rem; color: var(--accent); }
         .stat-copy { color: var(--muted); line-height: 1.7; }
         .how-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-        .how-card { padding: 28px; border-radius: 28px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); }
+        .how-card { padding: 28px; border-radius: 28px; background: var(--surface-strong); border: 1px solid rgba(150,150,150,0.1); }
         .how-step { font-size: 0.96rem; font-weight: 700; color: var(--gold); margin-bottom: 14px; }
         .how-title { font-size: 1.35rem; margin-bottom: 0.8rem; }
         .how-text { color: var(--muted); line-height: 1.85; }
         .agent-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-        .agent-card { padding: 32px; border-radius: 32px; background: rgba(15, 23, 42, 0.94); border: 1px solid rgba(255,255,255,0.05); transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease; }
-        .agent-card:hover { transform: translateY(-6px); border-color: rgba(99, 102, 241, 0.35); box-shadow: 0 24px 70px rgba(99, 102, 241, 0.14); }
+        .agent-card { padding: 32px; border-radius: 32px; background: var(--surface); border: 1px solid rgba(150,150,150,0.1); transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease; }
+        .agent-card:hover { transform: translateY(-6px); border-color: var(--accent); box-shadow: 0 24px 70px var(--accent-soft); }
         .agent-label { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 1rem; font-size: 0.95rem; color: var(--gold); }
         .agent-title { margin: 0; font-size: 1.45rem; font-weight: 700; }
         .agent-copy { margin-top: 0.85rem; color: var(--muted); line-height: 1.75; }
@@ -131,7 +142,7 @@ function LandingPage() {
         <main className="hero">
           <section className="hero-copy">
             <span className="eyebrow">AI English Coaching</span>
-            <h1>Speak Like You <strong>Belong in the Room</strong>.</h1>
+            <h1>Speak Like You <strong>Belong in the Room</strong></h1>
             <p className="hero-text">AI-powered English coaching built for Saudi tech professionals — designed to give your language confidence, cultural poise, and career momentum.</p>
             <div className="hero-actions">
               <button type="button" className="btn-primary" onClick={handleStartFree}>

@@ -155,11 +155,11 @@ def _parse_scores(response: str) -> dict:
     }
 
     patterns = {
-        "grammar_score": r"(?:Grammar|Grammar Accuracy|grammar)[\s\:]*(\d+\.?\d*)\s*(?:/|out of)?\s*10",
-        "vocabulary_score": r"(?:Vocabulary|Vocabulary Range|vocabulary)[\s\:]*(\d+\.?\d*)\s*(?:/|out of)?\s*10",
-        "clarity_score": r"(?:Clarity|Clarity & Structure|Clarity and Structure|clarity)[\s\:]*(\d+\.?\d*)\s*(?:/|out of)?\s*10",
-        "tone_score": r"(?:Tone|Professional Tone|tone)[\s\:]*(\d+\.?\d*)\s*(?:/|out of)?\s*10",
-        "job_readiness_score": r"(?:Job Readiness|JOB_READINESS|Score)[\s\:]*(\d+\.?\d*)\s*(?:/|out of)?\s*100",
+        "grammar_score": r"(?:Grammar|Grammar Accuracy|grammar)[^\d]*(\d+\.?\d*)(?:\s*(?:/|out of)?\s*10)?",
+        "vocabulary_score": r"(?:Vocabulary|Vocabulary Range|vocabulary)[^\d]*(\d+\.?\d*)(?:\s*(?:/|out of)?\s*10)?",
+        "clarity_score": r"(?:Clarity|Clarity & Structure|Clarity and Structure|clarity)[^\d]*(\d+\.?\d*)(?:\s*(?:/|out of)?\s*10)?",
+        "tone_score": r"(?:Tone|Professional Tone|tone)[^\d]*(\d+\.?\d*)(?:\s*(?:/|out of)?\s*10)?",
+        "job_readiness_score": r"(?:Job Readiness|JOB_READINESS|Score)[^\d]*(\d+\.?\d*)(?:\s*(?:/|out of)?\s*100)?",
     }
 
     for key, pattern in patterns.items():
@@ -175,8 +175,8 @@ def _parse_scores(response: str) -> dict:
 
 def _parse_section(response: str, section: str) -> str:
     """"""
-    # Allow #, ##, or ### and case-insensitivity
-    pattern = rf"#+\s*(?:{section})\s*\n(.*?)(?=\n#+|\Z)"
+    # Allow #, ##, or ###, optional asterisks, and optional colon
+    pattern = rf"(?:#+|\*\*)\s*(?:{section})[:\*]*\s*\n(.*?)(?=\n(?:#+|\*\*)[A-Z]|\Z)"
     match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
     if match:
         return match.group(1).strip()

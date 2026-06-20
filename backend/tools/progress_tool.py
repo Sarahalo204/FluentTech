@@ -61,39 +61,7 @@ def log_session(
         })
 
     except Exception as e:
-        # SQLite Fallback
-        try:
-            import sqlite3
-            conn = sqlite3.connect("edulingo.db")
-            cursor = conn.cursor()
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS sessions (
-                    session_id TEXT PRIMARY KEY,
-                    learner_id TEXT,
-                    session_type TEXT,
-                    duration_mins INTEGER,
-                    created_at TEXT
-                )
-            """)
-            now = datetime.utcnow().isoformat()
-            cursor.execute("""
-                INSERT INTO sessions (session_id, learner_id, session_type, duration_mins, created_at)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(session_id) DO UPDATE SET
-                    session_type=excluded.session_type,
-                    duration_mins=excluded.duration_mins,
-                    created_at=excluded.created_at
-            """, (session_id, learner_id, session_type, duration_mins, now))
-            
-            cursor.execute("UPDATE learner_profiles SET sessions_completed = sessions_completed + 1 WHERE learner_id = ?", (learner_id,))
-            conn.commit()
-            conn.close()
-            return json.dumps({
-                "status": "success",
-                "message": f"Session {session_id} logged successfully (SQLite Fallback)"
-            })
-        except Exception as sqle:
-            return json.dumps({"status": "error", "message": f"Supabase error: {e}. SQLite error: {sqle}"})
+        return json.dumps({"status": "error", "message": f"Database error: {str(e)}"})
 
 
 @tool
@@ -133,33 +101,7 @@ def save_feedback_result(
         return json.dumps({"status": "success", "message": "Feedback saved"})
 
     except Exception as e:
-        # SQLite Fallback
-        try:
-            import sqlite3
-            conn = sqlite3.connect("edulingo.db")
-            cursor = conn.cursor()
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS feedback_history (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    learner_id TEXT,
-                    session_id TEXT,
-                    grammar_score REAL,
-                    vocabulary_score REAL,
-                    clarity_score REAL,
-                    job_readiness_score REAL,
-                    corrections TEXT,
-                    created_at TEXT
-                )
-            """)
-            cursor.execute("""
-                INSERT INTO feedback_history (learner_id, session_id, grammar_score, vocabulary_score, clarity_score, job_readiness_score, corrections, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (learner_id, session_id, grammar_score, vocabulary_score, clarity_score, job_readiness_score, json.dumps(parsed_mistakes), datetime.utcnow().isoformat()))
-            conn.commit()
-            conn.close()
-            return json.dumps({"status": "success", "message": "Feedback saved (SQLite Fallback)"})
-        except Exception as sqle:
-            return json.dumps({"status": "error", "message": f"Supabase error: {e}. SQLite error: {sqle}"})
+        return json.dumps({"status": "error", "message": f"Database error: {str(e)}"})
 
 
 @tool
@@ -217,64 +159,7 @@ def get_weekly_summary(learner_id: str) -> str:
         })
 
     except Exception as e:
-        # SQLite Fallback
-        try:
-            import sqlite3
-            conn = sqlite3.connect("edulingo.db")
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            week_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
-            
-            # Check sessions
-            cursor.execute("SELECT COUNT(*) FROM sessions WHERE learner_id = ? AND created_at >= ?", (learner_id, week_ago))
-            sessions_count = cursor.fetchone()[0]
-            
-            # Check feedback
-            cursor.execute("SELECT * FROM feedback_history WHERE learner_id = ? AND created_at >= ?", (learner_id, week_ago))
-            rows = cursor.fetchall()
-            conn.close()
-            
-            feedbacks = [dict(r) for r in rows]
-            if feedbacks:
-                avg_grammar = sum(f.get("grammar_score", 0) for f in feedbacks) / len(feedbacks)
-                avg_vocab = sum(f.get("vocabulary_score", 0) for f in feedbacks) / len(feedbacks)
-                avg_clarity = sum(f.get("clarity_score", 0) for f in feedbacks) / len(feedbacks)
-                avg_tone = 0
-                avg_job_readiness = sum(f.get("job_readiness_score", 0) for f in feedbacks) / len(feedbacks)
-            else:
-                avg_grammar = avg_vocab = avg_clarity = avg_tone = avg_job_readiness = 0
-                
-            all_mistakes = []
-            for f in feedbacks:
-                corr_str = f.get("corrections", "[]")
-                try:
-                    corr = json.loads(corr_str) if isinstance(corr_str, str) else corr_str
-                except Exception:
-                    corr = []
-                if isinstance(corr, list):
-                    all_mistakes.extend(corr)
-                    
-            mistake_counts = {}
-            for m in all_mistakes:
-                m_str = json.dumps(m) if isinstance(m, dict) else str(m)
-                mistake_counts[m_str] = mistake_counts.get(m_str, 0) + 1
-                
-            recurring = [k for k, v in mistake_counts.items() if v >= 2]
-            
-            return json.dumps({
-                "status": "success",
-                "summary": {
-                    "sessions_this_week": sessions_count,
-                    "avg_grammar_score": round(avg_grammar, 1),
-                    "avg_vocabulary_score": round(avg_vocab, 1),
-                    "avg_clarity_score": round(avg_clarity, 1),
-                    "avg_tone_score": round(avg_tone, 1),
-                    "avg_job_readiness": round(avg_job_readiness, 1),
-                    "recurring_mistakes": recurring,
-                }
-            })
-        except Exception as sqle:
-            return json.dumps({"status": "error", "message": f"Supabase error: {e}. SQLite error: {sqle}"})
+        return json.dumps({"status": "error", "message": f"Database error: {str(e)}"})
 
 
 @tool
@@ -313,45 +198,7 @@ def get_recurring_mistakes(learner_id: str, limit: int = 5) -> str:
         })
 
     except Exception as e:
-        # SQLite Fallback
-        try:
-            import sqlite3
-            conn = sqlite3.connect("edulingo.db")
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("SELECT corrections FROM feedback_history WHERE learner_id = ? ORDER BY created_at DESC LIMIT 50", (learner_id,))
-            rows = cursor.fetchall()
-            conn.close()
-            
-            all_mistakes = []
-            for row in rows:
-                corr_str = row["corrections"]
-                try:
-                    corr = json.loads(corr_str) if isinstance(corr_str, str) else corr_str
-                except Exception:
-                    corr = []
-                if isinstance(corr, list):
-                    all_mistakes.extend(corr)
-                    
-            mistake_counts = {}
-            for m in all_mistakes:
-                m_str = json.dumps(m) if isinstance(m, dict) else str(m)
-                mistake_counts[m_str] = mistake_counts.get(m_str, 0) + 1
-                
-            top_mistakes = sorted(
-                mistake_counts.items(),
-                key=lambda x: x[1],
-                reverse=True
-            )[:limit]
-            
-            return json.dumps({
-                "status": "success",
-                "recurring_mistakes": [
-                    {"mistake": m, "count": c} for m, c in top_mistakes
-                ]
-            })
-        except Exception as sqle:
-            return json.dumps({"status": "error", "message": f"Supabase error: {e}. SQLite error: {sqle}"})
+        return json.dumps({"status": "error", "message": f"Database error: {str(e)}"})
 
 
 @tool

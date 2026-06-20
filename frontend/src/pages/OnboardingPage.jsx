@@ -44,7 +44,8 @@ const levelProfiles = {
 
 function OnboardingPage() {
   const navigate = useNavigate();
-  const { register, updateLevel } = useAuth();
+  const { user, register, updateLevel } = useAuth();
+  const [isNewUser, setIsNewUser] = useState(false);
 
   const [step, setStep] = useState(1);
   const [name, setName] = useState('');
@@ -57,6 +58,15 @@ function OnboardingPage() {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [calculatedLevel, setCalculatedLevel] = useState('A1');
+
+  useEffect(() => {
+    // If they were already logged in when they visited the page, redirect them.
+    // If isNewUser is true, it means they JUST registered on this page, so let them continue to Step 2.
+    if (user && !isNewUser) {
+      navigate('/chat');
+    }
+  }, [user, isNewUser, navigate]);
+
 
   useEffect(() => {
     if (step === 2 && currentQuestion >= mcqQuestions.length) {
@@ -114,6 +124,7 @@ function OnboardingPage() {
       return;
     }
     try {
+      setIsNewUser(true); // Flag that this user was just created here
       await register({
         name,
         email,
@@ -135,29 +146,29 @@ function OnboardingPage() {
 
   return (
     <div className="mx-auto min-h-screen max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="rounded-3xl border border-slate-700 bg-slate-900/90 p-8 shadow-xl shadow-slate-950/20">
+      <div className="rounded-3xl border border-slate-200/60 bg-white dark:border-slate-700 dark:bg-slate-900/90 p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-xl dark:shadow-slate-950/20">
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-sky-300/90">FluentTech</p>
-            <h1 className="mt-3 text-3xl font-semibold text-white sm:text-4xl">Onboarding Assessment</h1>
-            <p className="mt-2 max-w-2xl text-sm text-slate-400">
+            <p className="text-xs uppercase tracking-[0.3em] text-sky-600 dark:text-sky-300/90">FluentTech</p>
+            <h1 className="mt-3 text-3xl font-semibold text-slate-900 dark:text-white sm:text-4xl">Onboarding Assessment</h1>
+            <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
               Complete the quick wizard to personalize your learning path and begin practicing English professionally.
             </p>
           </div>
-          <div className="rounded-3xl bg-slate-950/80 px-5 py-3 text-sm text-slate-300">
+          <div className="rounded-3xl bg-slate-100 dark:bg-slate-950/80 px-5 py-3 text-sm text-slate-600 dark:text-slate-300">
             Step {step} of 3
           </div>
         </div>
 
-        <div className="mb-8 rounded-full bg-slate-800/80 p-1">
+        <div className="mb-8 rounded-full bg-slate-200 dark:bg-slate-800/80 p-1">
           <div className="h-2 rounded-full bg-sky-500 transition-all" style={{ width: `${progress}%` }} />
         </div>
 
         {step === 1 && (
           <div className="space-y-6">
             <div className="text-center">
-              <h1 className="mt-4 text-3xl font-semibold text-white">Let's personalize your experience</h1>
-              <p className="mt-3 text-sm text-slate-400">Tell us a bit about your role so we can tailor your practice.</p>
+              <h1 className="mt-4 text-3xl font-semibold text-slate-900 dark:text-white">Let's personalize your experience</h1>
+              <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">Tell us a bit about your role so we can tailor your practice.</p>
             </div>
 
             {error && (
@@ -166,50 +177,50 @@ function OnboardingPage() {
               </div>
             )}
 
-            <div className="rounded-3xl bg-slate-950/70 p-6">
-              <h2 className="text-xl font-semibold text-white">Step 1 — Basic Info & Registration</h2>
-              <p className="mt-2 text-sm text-slate-400">Please provide your details to register.</p>
+            <div className="rounded-3xl bg-slate-50 dark:bg-slate-950/70 p-6 border border-slate-100 dark:border-transparent">
+              <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Step 1 — Basic Info & Registration</h2>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Please provide your details to register.</p>
 
               <div className="mt-6 grid gap-6 sm:grid-cols-2">
-                <label className="space-y-2 text-sm text-slate-200">
+                <label className="space-y-2 text-sm text-slate-700 dark:text-slate-200">
                   الاسم (Name)
                   <input
                     type="text"
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                     placeholder="Your name"
-                    className="w-full rounded-3xl border border-slate-700 bg-slate-950/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20"
+                    className="w-full rounded-3xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950/90 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
                   />
                 </label>
 
-                <label className="space-y-2 text-sm text-slate-200">
+                <label className="space-y-2 text-sm text-slate-700 dark:text-slate-200">
                   البريد الإلكتروني (Email)
                   <input
                     type="email"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
                     placeholder="you@example.com"
-                    className="w-full rounded-3xl border border-slate-700 bg-slate-950/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20"
+                    className="w-full rounded-3xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950/90 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
                   />
                 </label>
 
-                <label className="space-y-2 text-sm text-slate-200">
+                <label className="space-y-2 text-sm text-slate-700 dark:text-slate-200">
                   كلمة المرور (Password)
                   <input
                     type="password"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     placeholder="••••••••"
-                    className="w-full rounded-3xl border border-slate-700 bg-slate-950/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20"
+                    className="w-full rounded-3xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950/90 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
                   />
                 </label>
 
-                <label className="space-y-2 text-sm text-slate-200">
+                <label className="space-y-2 text-sm text-slate-700 dark:text-slate-200">
                   المجال المهني (Job Field)
                   <select
                     value={jobTitle}
                     onChange={(event) => setJobTitle(event.target.value)}
-                    className="w-full rounded-3xl border border-slate-700 bg-slate-950/90 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20"
+                    className="w-full rounded-3xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950/90 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
                   >
                     <option>Software Engineer</option>
                     <option>AI Engineer</option>
@@ -242,15 +253,15 @@ function OnboardingPage() {
 
         {step === 2 && (
           <div className="space-y-6">
-            <div className="rounded-3xl bg-slate-950/70 p-6">
-              <h2 className="text-xl font-semibold text-white">Step 2 — English Level Assessment</h2>
-              <p className="mt-2 text-sm text-slate-400">Answer these {mcqQuestions.length} questions to evaluate your level (A1-C2).</p>
+            <div className="rounded-3xl bg-slate-50 border border-slate-100 dark:border-transparent dark:bg-slate-950/70 p-6">
+              <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Step 2 — English Level Assessment</h2>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Answer these {mcqQuestions.length} questions to evaluate your level (A1-C2).</p>
 
               {currentQuestion < mcqQuestions.length ? (
                 <div className="mt-6 space-y-4">
-                  <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6">
-                    <p className="text-sm font-semibold text-slate-100">Question {currentQuestion + 1} of {mcqQuestions.length}</p>
-                    <p className="mt-3 text-lg leading-7 text-white font-medium">{mcqQuestions[currentQuestion].text}</p>
+                  <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-6">
+                    <p className="text-sm font-semibold text-slate-600 dark:text-slate-100">Question {currentQuestion + 1} of {mcqQuestions.length}</p>
+                    <p className="mt-3 text-lg leading-7 text-slate-900 dark:text-white font-medium">{mcqQuestions[currentQuestion].text}</p>
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2 mt-6">
@@ -260,8 +271,8 @@ function OnboardingPage() {
                         type="button"
                         onClick={() => handleOptionSelect(idx)}
                         className={`rounded-2xl border p-4 text-left text-sm font-medium transition ${answers[currentQuestion] === idx
-                            ? 'border-sky-400 bg-sky-500/20 text-white'
-                            : 'border-slate-700 bg-slate-900 text-slate-200 hover:border-slate-500 hover:bg-slate-800'
+                            ? 'border-sky-500 bg-sky-50 text-sky-700 dark:border-sky-400 dark:bg-sky-500/20 dark:text-white'
+                            : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-800'
                           }`}
                       >
                         {option}
@@ -270,14 +281,14 @@ function OnboardingPage() {
                   </div>
                 </div>
               ) : (
-                <div className="mt-6 rounded-3xl border border-slate-800 bg-slate-900/80 p-8 text-center text-slate-200">
+                <div className="mt-6 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-8 text-center text-slate-700 dark:text-slate-200">
                   {isAnalyzing ? (
                     <>
-                      <p className="text-lg font-semibold text-white">Analyzing your level...</p>
-                      <p className="mt-3 text-sm text-slate-400">Mapping your answers to CEFR guidelines.</p>
+                      <p className="text-lg font-semibold text-slate-900 dark:text-white">Analyzing your level...</p>
+                      <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">Mapping your answers to CEFR guidelines.</p>
                     </>
                   ) : (
-                    <p className="text-lg font-semibold text-white">Assessment Complete.</p>
+                    <p className="text-lg font-semibold text-slate-900 dark:text-white">Assessment Complete.</p>
                   )}
                 </div>
               )}
@@ -287,21 +298,21 @@ function OnboardingPage() {
 
         {step === 3 && (
           <div className="space-y-6">
-            <div className="rounded-3xl bg-slate-950/70 p-8 text-center">
+            <div className="rounded-3xl bg-slate-50 border border-slate-100 dark:border-transparent dark:bg-slate-950/70 p-8 text-center">
               <div className="mx-auto inline-flex h-32 w-32 items-center justify-center rounded-full bg-sky-500 text-4xl font-bold text-white shadow-lg shadow-sky-500/30">
                 {calculatedLevel}
               </div>
-              <h2 className="mt-6 text-2xl font-semibold text-white">Your Assessed CEFR Level</h2>
-              <p className="mt-3 max-w-2xl mx-auto text-sm leading-7 text-slate-300">
+              <h2 className="mt-6 text-2xl font-semibold text-slate-900 dark:text-white">Your Assessed CEFR Level</h2>
+              <p className="mt-3 max-w-2xl mx-auto text-sm leading-7 text-slate-600 dark:text-slate-300">
                 {levelProfiles[calculatedLevel]?.description}
               </p>
             </div>
 
-            <div className="rounded-3xl bg-slate-950/70 p-6">
-              <h3 className="text-lg font-semibold text-white">Suggested Focus Areas</h3>
-              <ul className="mt-4 space-y-3 text-slate-200">
+            <div className="rounded-3xl bg-slate-50 border border-slate-100 dark:border-transparent dark:bg-slate-950/70 p-6">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Suggested Focus Areas</h3>
+              <ul className="mt-4 space-y-3 text-slate-700 dark:text-slate-200">
                 {levelProfiles[calculatedLevel]?.goals.map((goal, idx) => (
-                  <li key={idx} className="rounded-3xl border border-slate-800 bg-slate-900/80 px-4 py-4 text-sm">
+                  <li key={idx} className="rounded-3xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/80 px-4 py-4 text-sm">
                     {goal}
                   </li>
                 ))}
@@ -310,8 +321,8 @@ function OnboardingPage() {
 
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-sm text-slate-400">Name: <span className="text-slate-100">{name}</span></p>
-                <p className="text-sm text-slate-400">Level: <span className="text-slate-100">{calculatedLevel}</span></p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">Name: <span className="text-slate-900 dark:text-slate-100">{name}</span></p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">Level: <span className="text-slate-900 dark:text-slate-100">{calculatedLevel}</span></p>
               </div>
               <button
                 type="button"

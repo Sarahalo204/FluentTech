@@ -58,6 +58,26 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Security(security))
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
+from fastapi.responses import StreamingResponse
+from io import BytesIO
+import openai
+
+class TTSRequest(BaseModel):
+    text: str
+
+@app.post("/api/tts")
+async def generate_tts(request: TTSRequest, token: str = Depends(verify_token)):
+    try:
+        client = openai.OpenAI()
+        response = client.audio.speech.create(
+            model="tts-1",
+            voice="alloy",
+            input=request.text
+        )
+        return StreamingResponse(BytesIO(response.content), media_type="audio/mpeg")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 def save_long_term_memory(learner_id: str, session_id: str, state: Any):
     """Saves the LangGraph state to Supabase at the end of the session."""
     try:
@@ -72,31 +92,7 @@ def save_long_term_memory(learner_id: str, session_id: str, state: Any):
         supabase.table("session_memory").upsert(data).execute()
     except Exception as e:
         print(f"Error saving long-term memory to Supabase: {e}")
-        # SQLite Fallback
-        try:
-            import sqlite3
-            conn = sqlite3.connect("edulingo.db")
-            cursor = conn.cursor()
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS session_memory (
-                    learner_id TEXT,
-                    session_id TEXT PRIMARY KEY,
-                    agent_state TEXT NOT NULL,
-                    updated_at TEXT
-                )
-            """)
-            cursor.execute("""
-                INSERT INTO session_memory (learner_id, session_id, agent_state, updated_at)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(session_id) DO UPDATE SET
-                    agent_state=excluded.agent_state,
-                    updated_at=excluded.updated_at
-            """, (learner_id, session_id, json.dumps(state), datetime.utcnow().isoformat()))
-            conn.commit()
-            conn.close()
-            print("[+] Saved session memory to SQLite successfully.")
-        except Exception as sqle:
-            print(f"Error saving long-term memory to SQLite: {sqle}")
+
 
 app.add_middleware(
     CORSMiddleware,

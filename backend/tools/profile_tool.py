@@ -78,54 +78,7 @@ def create_learner_profile(
         })
 
     except Exception as e:
-        # SQLite Fallback
-        try:
-            import sqlite3
-            conn = sqlite3.connect("edulingo.db")
-            cursor = conn.cursor()
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS learner_profiles (
-                    learner_id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    email TEXT UNIQUE,
-                    password_hash TEXT,
-                    current_level TEXT DEFAULT 'A1',
-                    target_level TEXT DEFAULT 'B2',
-                    learning_goals TEXT DEFAULT '[]',
-                    weak_areas TEXT DEFAULT '[]',
-                    preferred_topics TEXT DEFAULT '[]',
-                    sessions_completed INTEGER DEFAULT 0,
-                    created_at TEXT,
-                    updated_at TEXT
-                )
-            """)
-            now = datetime.utcnow().isoformat()
-            cursor.execute("""
-                INSERT INTO learner_profiles 
-                (learner_id, name, email, password_hash, target_level, learning_goals, preferred_topics, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(learner_id) DO UPDATE SET
-                    name=excluded.name,
-                    email=excluded.email,
-                    password_hash=excluded.password_hash,
-                    target_level=excluded.target_level,
-                    learning_goals=excluded.learning_goals,
-                    preferred_topics=excluded.preferred_topics,
-                    updated_at=excluded.updated_at
-            """, (
-                learner_id, name.strip(), email.strip() if email else None, password_hash if password_hash else None,
-                target_level, json.dumps(goals), json.dumps(topics),
-                now, now
-            ))
-            conn.commit()
-            conn.close()
-            return json.dumps({
-                "status": "success",
-                "message": f"Profile created for {name.strip()} (SQLite Fallback)",
-                "learner_id": learner_id
-            })
-        except Exception as sqle:
-            return json.dumps({"status": "error", "message": f"Supabase error: {e}. SQLite error: {sqle}"})
+        return json.dumps({"status": "error", "message": f"Database error: {str(e)}"})
 
 
 def get_learner_by_email(email: str) -> Optional[dict]:
@@ -137,21 +90,8 @@ def get_learner_by_email(email: str) -> Optional[dict]:
             return response.data[0]
         return None
     except Exception as e:
-        print(f"Fallback to SQLite get_learner_by_email: {e}")
-        try:
-            import sqlite3
-            conn = sqlite3.connect("edulingo.db")
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM learner_profiles WHERE email = ?", (email.strip(),))
-            row = cursor.fetchone()
-            conn.close()
-            if row:
-                return dict(row)
-            return None
-        except Exception as sqle:
-            print(f"SQLite error get_learner_by_email: {sqle}")
-            return None
+        print(f"Database error get_learner_by_email: {e}")
+        return None
 
 @tool
 def get_learner_profile(learner_id: str) -> str:
@@ -170,30 +110,7 @@ def get_learner_profile(learner_id: str) -> str:
         return json.dumps({"status": "success", "profile": profile})
 
     except Exception as e:
-        # SQLite Fallback
-        try:
-            import sqlite3
-            conn = sqlite3.connect("edulingo.db")
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM learner_profiles WHERE learner_id = ?", (learner_id,))
-            row = cursor.fetchone()
-            conn.close()
-            if not row:
-                return json.dumps({
-                    "status": "not_found",
-                    "message": f"No profile found for learner_id: {learner_id} (SQLite Fallback)"
-                })
-            profile = dict(row)
-            for col in ["learning_goals", "weak_areas", "preferred_topics"]:
-                if col in profile and isinstance(profile[col], str):
-                    try:
-                        profile[col] = json.loads(profile[col])
-                    except Exception:
-                        profile[col] = []
-            return json.dumps({"status": "success", "profile": profile})
-        except Exception as sqle:
-            return json.dumps({"status": "error", "message": f"Supabase error: {e}. SQLite error: {sqle}"})
+        return json.dumps({"status": "error", "message": f"Database error: {str(e)}"})
 
 
 @tool
@@ -223,25 +140,7 @@ def update_learner_level(learner_id: str, new_level: str) -> str:
         })
 
     except Exception as e:
-        # SQLite Fallback
-        try:
-            import sqlite3
-            conn = sqlite3.connect("edulingo.db")
-            cursor = conn.cursor()
-            cursor.execute("UPDATE learner_profiles SET current_level = ?, updated_at = ? WHERE learner_id = ?",
-                           (new_level, datetime.utcnow().isoformat(), learner_id))
-            changes = conn.total_changes
-            conn.commit()
-            conn.close()
-            if changes == 0:
-                return json.dumps({"status": "error", "message": f"Learner {learner_id} not found (SQLite Fallback)"})
-            return json.dumps({
-                "status": "success",
-                "message": f"Level updated to {new_level} (SQLite Fallback)",
-                "new_level": new_level
-            })
-        except Exception as sqle:
-            return json.dumps({"status": "error", "message": f"Supabase error: {e}. SQLite error: {sqle}"})
+        return json.dumps({"status": "error", "message": f"Database error: {str(e)}"})
 
 
 @tool
@@ -278,41 +177,7 @@ def add_weak_area(learner_id: str, weakness: str) -> str:
         })
 
     except Exception as e:
-        # SQLite Fallback
-        try:
-            import sqlite3
-            conn = sqlite3.connect("edulingo.db")
-            cursor = conn.cursor()
-            cursor.execute("SELECT weak_areas FROM learner_profiles WHERE learner_id = ?", (learner_id,))
-            row = cursor.fetchone()
-            if not row:
-                conn.close()
-                return json.dumps({"status": "error", "message": "Learner not found (SQLite Fallback)"})
-            
-            weak_areas_str = row[0]
-            try:
-                weak_areas = json.loads(weak_areas_str) if weak_areas_str else []
-            except Exception:
-                weak_areas = []
-            
-            if not isinstance(weak_areas, list):
-                weak_areas = []
-                
-            weakness_clean = weakness.strip().lower()
-            existing_lower = [str(w).lower() for w in weak_areas]
-            
-            if weakness_clean not in existing_lower:
-                weak_areas.append(weakness.strip())
-                cursor.execute("UPDATE learner_profiles SET weak_areas = ?, updated_at = ? WHERE learner_id = ?",
-                               (json.dumps(weak_areas), datetime.utcnow().isoformat(), learner_id))
-                conn.commit()
-            conn.close()
-            return json.dumps({
-                "status": "success",
-                "weak_areas": weak_areas
-            })
-        except Exception as sqle:
-            return json.dumps({"status": "error", "message": f"Supabase error: {e}. SQLite error: {sqle}"})
+        return json.dumps({"status": "error", "message": f"Database error: {str(e)}"})
 
 
 @tool
@@ -343,25 +208,7 @@ def update_learning_goals(learner_id: str, goals: str) -> str:
         })
 
     except Exception as e:
-        # SQLite Fallback
-        try:
-            import sqlite3
-            conn = sqlite3.connect("edulingo.db")
-            cursor = conn.cursor()
-            cursor.execute("UPDATE learner_profiles SET learning_goals = ?, updated_at = ? WHERE learner_id = ?",
-                           (json.dumps(parsed_goals), datetime.utcnow().isoformat(), learner_id))
-            changes = conn.total_changes
-            conn.commit()
-            conn.close()
-            if changes == 0:
-                return json.dumps({"status": "error", "message": f"Learner {learner_id} not found (SQLite Fallback)"})
-            return json.dumps({
-                "status": "success",
-                "message": "Goals updated successfully (SQLite Fallback)",
-                "goals": parsed_goals
-            })
-        except Exception as sqle:
-            return json.dumps({"status": "error", "message": f"Supabase error: {e}. SQLite error: {sqle}"})
+        return json.dumps({"status": "error", "message": f"Database error: {str(e)}"})
 
 
 @tool
@@ -392,25 +239,7 @@ def update_preferred_topics(learner_id: str, topics: str) -> str:
         })
 
     except Exception as e:
-        # SQLite Fallback
-        try:
-            import sqlite3
-            conn = sqlite3.connect("edulingo.db")
-            cursor = conn.cursor()
-            cursor.execute("UPDATE learner_profiles SET preferred_topics = ?, updated_at = ? WHERE learner_id = ?",
-                           (json.dumps(parsed), datetime.utcnow().isoformat(), learner_id))
-            changes = conn.total_changes
-            conn.commit()
-            conn.close()
-            if changes == 0:
-                return json.dumps({"status": "error", "message": f"Learner {learner_id} not found (SQLite Fallback)"})
-            return json.dumps({
-                "status": "success",
-                "message": "Preferred topics updated (SQLite Fallback)",
-                "topics": parsed
-            })
-        except Exception as sqle:
-            return json.dumps({"status": "error", "message": f"Supabase error: {e}. SQLite error: {sqle}"})
+        return json.dumps({"status": "error", "message": f"Database error: {str(e)}"})
 
 
 @tool
@@ -432,24 +261,7 @@ def get_session_history(learner_id: str, limit: int = 5) -> str:
         })
 
     except Exception as e:
-        # SQLite Fallback
-        try:
-            import sqlite3
-            conn = sqlite3.connect("edulingo.db")
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("SELECT session_id, session_type, duration_mins, created_at FROM sessions WHERE learner_id = ? ORDER BY created_at DESC LIMIT ?",
-                           (learner_id, limit))
-            rows = cursor.fetchall()
-            conn.close()
-            sessions = [dict(row) for row in rows]
-            return json.dumps({
-                "status": "success",
-                "sessions": sessions,
-                "total_returned": len(sessions)
-            })
-        except Exception as sqle:
-            return json.dumps({"status": "error", "message": f"Supabase error: {e}. SQLite error: {sqle}"})
+        return json.dumps({"status": "error", "message": f"Database error: {str(e)}"})
 
 
 PROFILE_TOOLS = [

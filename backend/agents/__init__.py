@@ -163,10 +163,10 @@ def create_graph():
         }
     )
 
-    graph.add_edge("learning_agent", "supervisor")
-    graph.add_edge("conversation_agent", "supervisor")
-    graph.add_edge("roleplay_agent", "supervisor")
-    graph.add_edge("feedback_agent", "supervisor")
+    graph.add_edge("learning_agent", END)
+    graph.add_edge("conversation_agent", END)
+    graph.add_edge("roleplay_agent", END)
+    graph.add_edge("feedback_agent", END)
 
     return graph.compile()
 

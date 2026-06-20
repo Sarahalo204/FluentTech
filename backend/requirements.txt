@@ -64,3 +64,4 @@ pytest-cov==6.0.0                 # Code coverage
 
 supabase>=2.3.4
 PyJWT>=2.8.0
+openai>=1.0.0
