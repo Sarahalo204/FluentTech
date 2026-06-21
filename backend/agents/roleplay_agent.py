@@ -193,8 +193,8 @@ def roleplay_agent_node(state: AgentState) -> AgentState:
     is_first_message = state.get("roleplay_scenario") is None
 
     conversation_history = "\n".join([
-        f"  {m['role'].upper()}: {m['content'][:400]}"
-        for m in messages[-6:]
+        f"  {m['role'].upper()}: {m['content'][:800]}"
+        for m in state.get("messages", [])[-6:]
     ])
 
     flow = scenario["flow"]
