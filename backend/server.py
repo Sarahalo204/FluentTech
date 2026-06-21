@@ -62,19 +62,24 @@ from fastapi.responses import StreamingResponse
 from io import BytesIO
 import openai
 
-class TTSRequest(BaseModel):
-    text: str
+@app.get("/api/tts")
+async def generate_tts_get(text: str, token: Optional[str] = None):
+    # Verify token manually since it's a query param
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing token")
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
-@app.post("/api/tts")
-async def generate_tts(request: TTSRequest, token: str = Depends(verify_token)):
     try:
         client = openai.OpenAI()
-        response = client.audio.speech.create(
+        response = client.audio.speech.with_streaming_response.create(
             model="tts-1",
             voice="alloy",
-            input=request.text
+            input=text
         )
-        return StreamingResponse(BytesIO(response.content), media_type="audio/mpeg")
+        return StreamingResponse(response.iter_bytes(), media_type="audio/mpeg")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

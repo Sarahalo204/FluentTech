@@ -105,6 +105,9 @@ Learner context:
 Conversation Summary (previous context):
 {context_summary}
 
+Recent Conversation History:
+{conversation_history}
+
 EVALUATION PROTOCOL:
 You handle TWO types of inputs:
 Type A: The user submits text for correction (e.g., "check this: X", "is this correct: X", or just typing a sentence).
@@ -197,6 +200,11 @@ def feedback_agent_node(state: AgentState) -> AgentState:
             handle_parsing_errors=True,
         )
 
+        conversation_history = "\n".join([
+            f"  {m['role'].upper()}: {m['content'][:800]}"
+            for m in state.get("messages", [])[-6:]
+        ])
+
         result = executor.invoke({
             "input": user_input,
             "learner_name": profile.get("name", "Learner") if profile else "Learner",
@@ -204,6 +212,7 @@ def feedback_agent_node(state: AgentState) -> AgentState:
             "learning_goals": profile.get("learning_goals", []) if profile else [],
             "weak_areas": profile.get("weak_areas", []) if profile else [],
             "context_summary": context_summary,
+            "conversation_history": conversation_history,
         })
 
         agent_response = result.get("output", "I could not evaluate this text. Please try again.")

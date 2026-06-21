@@ -9,11 +9,18 @@ BANNED_KEYWORDS = [
     "bypass your filters", "jailbreak", "do anything now",
 ]
 
+from pydantic import BaseModel, Field
+from .llm_config import get_llm
+
+class GuardrailClassification(BaseModel):
+    is_safe: bool = Field(..., description="True if the user input is related to learning English, conversation, asking about tech, or general chat. False if the user is asking the agent to write code (like Python), solve math, or do tasks outside the scope of an English coach.")
+    reason: str = Field(..., description="If is_safe is False, explain briefly why. Otherwise empty string.")
+
 def validate_input(user_input: str) -> dict:
     """"""
     lower_input = user_input.lower()
     
-    # 1. Prompt Injection & Safety Check
+    # 1. Prompt Injection & Safety Check (Static)
     for keyword in BANNED_KEYWORDS:
         if keyword in lower_input:
             return {
@@ -37,6 +44,24 @@ def validate_input(user_input: str) -> dict:
             "reason": "language_violation",
             "message": "Please communicate in English only so I can properly evaluate and assist you with your learning."
         }
+
+    # 4. Dynamic LLM Scope Check
+    try:
+        llm = get_llm("supervisor") # Fast model
+        structured_llm = llm.with_structured_output(GuardrailClassification)
+        result = structured_llm.invoke(
+            f"You are a strict guardrail for an AI English learning coach. Your job is to reject any requests that are outside the scope of English learning, such as writing programming code (e.g., Python, JS), solving math equations, or acting as a general assistant.\n\nUser Input: '{user_input}'\n\nClassify this input."
+        )
+        if not result.is_safe:
+            return {
+                "is_safe": False,
+                "reason": "out_of_scope",
+                "message": f"I'm your English language coach! I cannot help with that ({result.reason}). Let's focus on practicing English."
+            }
+    except Exception as e:
+        print(f"Dynamic guardrail error: {e}")
+        # Fallback to safe if LLM fails
+        pass
 
     return {"is_safe": True}
 

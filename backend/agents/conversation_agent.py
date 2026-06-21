@@ -219,7 +219,7 @@ def conversation_agent_node(state: AgentState) -> AgentState:
     language_rule = LANGUAGE_RULES_BY_LEVEL.get(current_level, LANGUAGE_RULES_BY_LEVEL["B1"])
 
     conversation_history = "\n".join([
-        f"  {m['role'].upper()}: {m['content'][:400]}"
+        f"  {m['role'].upper()}: {m['content'][:800]}"
         for m in messages[-5:]
     ])
 

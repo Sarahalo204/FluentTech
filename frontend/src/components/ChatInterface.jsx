@@ -5,6 +5,8 @@ import { useAuth } from '../context/AuthContext';
 import 'regenerator-runtime/runtime';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import { Mic, MicOff, Volume2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 const formatTime = () => new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
 const scoreColorClass = (value) => {
@@ -52,10 +54,12 @@ function ChatInterface() {
     }
   };
 
-  const playTTS = async (text) => {
+  const playTTS = (text) => {
     try {
-      const blob = await apiService.getTTS(text);
-      const url = URL.createObjectURL(blob);
+      const userStr = localStorage.getItem('edulingo_user');
+      const token = userStr ? JSON.parse(userStr).access_token : '';
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+      const url = `${baseUrl}/api/tts?text=${encodeURIComponent(text)}&token=${encodeURIComponent(token)}`;
       const audio = new Audio(url);
       audio.play();
     } catch (err) {
@@ -167,9 +171,9 @@ function ChatInterface() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-200/80">FluentTech</p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 dark:text-white sm:text-4xl">Interactive Curriculum Chat</h1>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 dark:text-white sm:text-4xl">FluentTech AI Language Coach</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300 sm:text-base">
-              Ask questions about the EdTech curriculum, language learning modules, and lesson content. The assistant retrieves answers from your knowledge base and shows source citations.
+              Ask me anything, practice job interviews, or improve your grammar and vocabulary. I will track your progress and provide personalized feedback to help you succeed!
             </p>
           </div>
           <button
@@ -217,7 +221,20 @@ function ChatInterface() {
                         </button>
                       )}
                     </div>
-                    <p className="whitespace-pre-wrap text-sm leading-6">{message.text}</p>
+                    <div className="text-sm leading-6">
+                      <ReactMarkdown 
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
+                          strong: ({node, ...props}) => <strong className="font-bold text-slate-900 dark:text-white" {...props} />,
+                          ul: ({node, ...props}) => <ul className="list-disc pl-5 mb-2 space-y-1" {...props} />,
+                          ol: ({node, ...props}) => <ol className="list-decimal pl-5 mb-2 space-y-1" {...props} />,
+                          li: ({node, ...props}) => <li className="marker:text-sky-500" {...props} />
+                        }}
+                      >
+                        {message.text}
+                      </ReactMarkdown>
+                    </div>
                   </div>
                   <div className="flex w-full items-center justify-between gap-4 text-[11px] text-slate-500 dark:text-slate-400">
                     <span>{message.role === 'assistant' ? 'Assistant' : 'User'}</span>
