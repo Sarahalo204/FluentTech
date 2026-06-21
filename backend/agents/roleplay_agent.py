@@ -112,12 +112,13 @@ Scenario context: {context}
 Your interaction style: {style}
 
 CRITICAL RULES:
-1. Stay in character at ALL times. 
-2. ALWAYS start your response with "**[{persona_name}]**: " so the user knows exactly who is speaking to them.
-3. React realistically to what the learner says before asking your next question. Embody the persona deeply. Do not just blindly ask the next question from the list.
-4. Do NOT break character to give an English lesson. HOWEVER, if the user makes a grammar or vocabulary mistake, you MUST provide a very brief, polite inline correction on a new line before your in-character response. (e.g. "\n*[Correction: I completed all my projects]*\n**[Sarah (Hiring Manager)]**: Anyway, tell me more about...")
-5. If the learner gives a weak answer, probe deeper: "Could you elaborate on that?"
-6. When all stages are complete, provide a brief OOC (Out of Character) debrief:
+1. Stay in character EXCEPT during the final debrief stage.
+2. KEEP YOUR QUESTIONS VERY SHORT AND CONCISE. Maximum 2 sentences. Ask ONLY ONE question at a time. Do not write long paragraphs.
+3. ALWAYS start your response with "**[{persona_name}]**: " so the user knows exactly who is speaking to them.
+4. React realistically to what the learner says before asking your next question. Embody the persona deeply. Do not just blindly ask the next question from the list.
+5. Do NOT break character to give an English lesson. HOWEVER, if the user makes a grammar or vocabulary mistake, you MUST provide a very brief, polite inline correction on a new line before your in-character response. (e.g. "\n*[Correction: I completed all my projects]*\n**[Sarah (Hiring Manager)]**: Anyway, tell me more about...")
+6. If the learner gives a weak answer, probe deeper.
+7. When the stage is 'debrief', you MUST break character and output ONLY the Out-of-Character (OOC) Debrief containing:
    - What they did well
    - What to improve
    - 2-3 specific language tips
@@ -154,21 +155,27 @@ def determine_scenario(user_input: str, state: AgentState) -> str:
     if existing:
         return existing
 
-    user_lower = user_input.lower()
-    keywords = {
-        "project_presentation": ["presentation", "present", "slides", "deck", "architecture", "design review", "capstone"],
-        "job_interview": ["interview", "job", "hire", "hiring", "apply", "position"],
-        "sprint_meeting": ["sprint", "standup", "agile", "scrum", "update", "progress", "blocker", "ticket"],
-        "client_call": ["client", "customer", "demo", "meeting", "stakeholder", "pitch", "proposal"],
-        "recruiter_screening": ["recruiter", "screening", "hr", "phone screen", "talent", "culture fit"],
-        "salary_discussion": ["salary", "raise", "promotion", "compensation", "offer", "negotiate", "pay", "equity"]
-    }
+    try:
+        from agents.llm_config import get_llm
+        from pydantic import BaseModel, Field
+        from typing import Literal
 
-    for scenario, words in keywords.items():
-        if any(w in user_lower for w in words):
-            return scenario
-
-    return "job_interview"  # Fallback
+        class ScenarioClassification(BaseModel):
+            scenario: Literal[
+                "project_presentation", 
+                "job_interview", 
+                "sprint_meeting", 
+                "client_call", 
+                "recruiter_screening", 
+                "salary_discussion"
+            ] = Field(description="The roleplay scenario that best matches the user's intent.")
+            
+        llm = get_llm("roleplay").with_structured_output(ScenarioClassification)
+        result = llm.invoke(f"Classify the user's requested roleplay scenario based on their input: '{user_input}'")
+        return result.scenario
+    except Exception as e:
+        print(f"Error in determine_scenario: {e}")
+        return "job_interview"  # Fallback
 
 
 def roleplay_agent_node(state: AgentState) -> AgentState:
@@ -186,77 +193,130 @@ def roleplay_agent_node(state: AgentState) -> AgentState:
     is_first_message = state.get("roleplay_scenario") is None
 
     conversation_history = "\n".join([
-        f"  {m['role'].upper()}: {m['content'][:250]}"
+        f"  {m['role'].upper()}: {m['content'][:400]}"
         for m in messages[-6:]
     ])
 
     flow = scenario["flow"]
+    
+    # Properly track stage_index in state so it doesn't get messed up by earlier conversation
     stage_index = state.get("roleplay_stage_index", 0)
 
     if not is_first_message:
-        user_messages_in_roleplay = len([
-            m for m in messages if m["role"] == "user"
-        ]) - 1
-        stage_index = user_messages_in_roleplay
+        stage_index += 1
 
     if stage_index < len(flow):
         current_stage = flow[stage_index]
         remaining_stages = flow[stage_index + 1:]
         is_final_stage = False
         stage_guidance = scenario.get("stage_prompts", {}).get(
-            current_stage, "Continue the conversation naturally."
+            current_stage, "Ask a short question relevant to this stage."
         )
     else:
         current_stage = "debrief"
         remaining_stages = []
         is_final_stage = True
-        stage_guidance = "THE SCENARIO IS OVER. You MUST break character now and output the Out-of-Character (OOC) Debrief containing their strengths, weaknesses, and language tips. DO NOT ask any more interview questions."
+        stage_guidance = "THE SCENARIO IS OVER. You MUST break character now and output ONLY the Out-of-Character (OOC) Debrief containing their strengths, weaknesses, and language tips. DO NOT ask any more interview questions."
 
     try:
         llm = get_llm("roleplay")
 
-        from langchain.agents import create_tool_calling_agent
-        agent = create_tool_calling_agent(
-            llm=llm,
-            tools=EXERCISE_TOOLS,
-            prompt=ROLEPLAY_AGENT_PROMPT,
-        )
+        if is_final_stage:
+            # FORCE a break from the persona to ensure it doesn't keep asking questions
+            debrief_prompt = ChatPromptTemplate.from_messages([
+                ("system", """You are a Senior Silicon Valley Language Coach. The learner has just completed a '{scenario_name}' roleplay.
+You MUST provide an Out-of-Character (OOC) Debrief evaluating their English skills and interview performance.
+Do NOT ask any more interview questions. Do NOT act like {persona_name}.
 
-        executor = AgentExecutor(
-            agent=agent,
-            tools=EXERCISE_TOOLS,
-            verbose=True,
-            max_iterations=3,
-            handle_parsing_errors=True,
-        )
+Format your response exactly like this:
+### 📊 Roleplay Debrief
+**🌟 What you did well:**
+- [Point 1]
+- [Point 2]
 
-        actual_input = (
-            scenario["opening"] + "\n\n[The learner has arrived. Start the scenario.]"
-            if is_first_message
-            else user_input
-        )
+**📈 Areas for improvement:**
+- [Point 1]
+- [Point 2]
 
-        result = executor.invoke({
-            "input": actual_input,
-            "persona_name": scenario["persona_name"],
-            "persona": scenario["persona"],
-            "context": scenario["context"],
-            "style": scenario["style"],
-            "current_level": current_level,
-            "learning_goals": profile.get("learning_goals", []) if profile else [],
-            "context_summary": context_summary,
-            "current_stage": current_stage,
-            "stage_index": stage_index + 1,
-            "total_stages": len(flow),
-            "remaining_stages": remaining_stages,
-            "is_final_stage": is_final_stage,
-            "stage_guidance": stage_guidance,
-            "conversation_history": conversation_history,
-        })
+**💡 Specific Language Tips:**
+- [Tip 1]
+- [Tip 2]
 
-        agent_response = result.get("output", scenario["opening"])
+Conversation history to evaluate:
+{conversation_history}"""),
+                ("human", "Please provide my debrief.")
+            ])
+            chain = debrief_prompt | llm
+            result = chain.invoke({
+                "scenario_name": scenario_key.replace('_', ' ').title(),
+                "persona_name": scenario["persona_name"],
+                "conversation_history": conversation_history
+            })
+            agent_response = getattr(result, "content", result)
+            
+            # Save debrief to database
+            try:
+                from tools.progress_tool import save_feedback_result
+                import json
+                learner_id = profile.get("learner_id", "unknown") if profile else "unknown"
+                session_id = state.get("session_id", "unknown_session")
+                save_feedback_result.invoke({
+                    "learner_id": learner_id,
+                    "session_id": session_id,
+                    "original_text": f"Roleplay Debrief: {scenario_key.replace('_', ' ').title()}",
+                    "corrected_text": agent_response,
+                    "grammar_score": 0,
+                    "vocabulary_score": 0,
+                    "clarity_score": 0,
+                    "tone_score": 0,
+                    "job_readiness_score": 0,
+                    "mistakes": json.dumps([])
+                })
+            except Exception as e:
+                print(f"Warning: Could not save debrief to DB: {e}")
+        else:
+            from langchain.agents import create_tool_calling_agent
+            agent = create_tool_calling_agent(
+                llm=llm,
+                tools=EXERCISE_TOOLS,
+                prompt=ROLEPLAY_AGENT_PROMPT,
+            )
+
+            executor = AgentExecutor(
+                agent=agent,
+                tools=EXERCISE_TOOLS,
+                verbose=True,
+                max_iterations=3,
+                handle_parsing_errors=True,
+            )
+
+            actual_input = (
+                scenario["opening"] + "\n\n[The learner has arrived. Start the scenario.]"
+                if is_first_message
+                else user_input
+            )
+
+            result = executor.invoke({
+                "input": actual_input,
+                "persona_name": scenario["persona_name"],
+                "persona": scenario["persona"],
+                "context": scenario["context"],
+                "style": scenario["style"],
+                "current_level": current_level,
+                "learning_goals": profile.get("learning_goals", []) if profile else [],
+                "context_summary": context_summary,
+                "current_stage": current_stage,
+                "stage_index": stage_index + 1,
+                "total_stages": len(flow),
+                "remaining_stages": remaining_stages,
+                "is_final_stage": is_final_stage,
+                "stage_guidance": stage_guidance,
+                "conversation_history": conversation_history,
+            })
+            agent_response = result.get("output", scenario["opening"])
 
     except Exception as e:
+        print(f"ERROR in roleplay_agent: {e}")
         agent_response = (
             scenario["opening"] if is_first_message
             else "I see. Could you tell me more about that?"
@@ -268,10 +328,10 @@ def roleplay_agent_node(state: AgentState) -> AgentState:
     return {
         **state,
         "messages": messages,
-        "current_session_type": "roleplay_agent",
-        "roleplay_scenario": scenario_key,
-        "roleplay_stage_index": stage_index,
-        "current_topic": f"Roleplay: {scenario_key.replace('_', ' ').title()}",
+        "current_session_type": "roleplay_agent" if not is_final_stage else None,
+        "roleplay_scenario": scenario_key if not is_final_stage else None,
+        "roleplay_stage_index": stage_index if not is_final_stage else 0,
+        "current_topic": f"Roleplay: {scenario_key.replace('_', ' ').title()}" if not is_final_stage else None,
         "messages_since_last_summary": state.get("messages_since_last_summary", 0) + 1,
         "next_agent": None,
     }

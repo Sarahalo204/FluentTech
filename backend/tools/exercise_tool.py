@@ -87,6 +87,11 @@ VOCABULARY_TOPICS = {
                  "code review", "debugging", "unit testing", "API endpoint"],
     "data": ["pipeline", "ETL", "normalization", "schema", "query optimization",
              "data warehouse", "feature engineering", "model evaluation"],
+    "marketing": ["conversion rate", "A/B testing", "customer acquisition cost",
+                  "return on ad spend", "funnel optimization", "audience segmentation",
+                  "click-through rate", "impressions"],
+    "cybersecurity": ["encryption", "firewall", "vulnerability", "authentication",
+                      "penetration testing", "malware", "phishing", "zero-day exploit"],
 }
 
 

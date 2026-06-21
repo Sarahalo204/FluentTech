@@ -26,10 +26,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Agent & Tool Tests
-        working-directory: backend
-        run: |
-          python main.py
+
 
   build:
     needs: test

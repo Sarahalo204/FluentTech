@@ -88,8 +88,17 @@ function ChatInterface() {
           assistantMessage,
         ]);
 
+        let newSources = [];
         if (data.context_summary) {
-           setSources([{ title: 'Context Summary', snippet: data.context_summary }]);
+           newSources.push({ title: 'Context Summary', snippet: data.context_summary });
+        }
+        if (data.feedback && data.feedback.rag_sources) {
+           data.feedback.rag_sources.forEach(src => {
+               newSources.push({ title: 'Grammar Reference', snippet: src });
+           });
+        }
+        if (newSources.length > 0) {
+            setSources(newSources);
         }
 
         setInput('');
@@ -259,7 +268,7 @@ function ChatInterface() {
               value={input}
               onChange={(event) => setInput(event.target.value)}
               placeholder="Type your question about the curriculum, lessons, or pedagogy…"
-              className="w-full resize-none rounded-3xl border border-slate-200/80 bg-slate-50/50 dark:border-slate-700 dark:bg-slate-950/90 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 outline-none transition focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-500/10"
+              className="w-full resize-none rounded-3xl border border-slate-200/80 bg-slate-50/50 dark:border-slate-700 dark:bg-slate-950/90 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 outline-none transition focus:border-sky-500 focus:bg-white dark:focus:bg-slate-900/90 focus:ring-4 focus:ring-sky-500/10"
             />
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-slate-500 sm:text-sm">Press Enter to submit or use the microphone.</p>

@@ -71,7 +71,12 @@ Current topic: {state.get('current_topic', 'None')}
 
 Write a brief, factual summary (2-3 sentences max):"""
 
-        new_summary = llm.invoke(summary_prompt).strip()
+        result = llm.invoke(summary_prompt)
+        new_summary = getattr(result, "content", result)
+        if isinstance(new_summary, str):
+            new_summary = new_summary.strip()
+        else:
+            new_summary = str(new_summary).strip()
 
         if new_summary.startswith(("Summary:", "Here")):
             new_summary = new_summary.split(":", 1)[-1].strip()
@@ -203,10 +208,18 @@ def run_agent(
         final_state = graph.invoke(state)
 
         messages = final_state.get("messages", [])
-        last_assistant_message = next(
-            (m["content"] for m in reversed(messages) if m["role"] == "assistant"),
-            "I'm ready to help you practice English!"
-        )
+        
+        if final_state.get("next_agent") == "end":
+            last_assistant_message = "Thank you for practicing with FluentTech today! Keep up the great work. Goodbye! 👋"
+            # Append it so it's in the history
+            messages.append({"role": "assistant", "content": last_assistant_message})
+            final_state["messages"] = messages
+            final_state["current_session_type"] = "end"
+        else:
+            last_assistant_message = next(
+                (m["content"] for m in reversed(messages) if m["role"] == "assistant"),
+                "I'm ready to help you practice English!"
+            )
 
         return {
             "response": last_assistant_message,
