@@ -82,8 +82,10 @@ def save_long_term_memory(learner_id: str, session_id: str, state: Any):
     """Saves the LangGraph state to Supabase at the end of the session."""
     try:
         supabase = get_supabase()
-        # Clean state for JSON serialization if needed
+        # Use deterministic UUID based on session_id to allow upsert to match
+        import uuid
         data = {
+            "id": str(uuid.uuid5(uuid.NAMESPACE_OID, session_id)),
             "learner_id": learner_id,
             "session_id": session_id,
             "agent_state": state,
@@ -268,7 +270,7 @@ def chat(req: ChatRequest, token_learner_id: str = Depends(verify_token)):
     profile = profile_res["profile"]
     
     if req.session_id not in sessions:
-        sessions[req.session_id] = create_initial_state(req.learner_id, req.user_input, profile)
+        sessions[req.session_id] = create_initial_state(req.learner_id, req.user_input, profile, req.session_id)
         
     state = sessions[req.session_id]
     
@@ -307,7 +309,8 @@ def chat(req: ChatRequest, token_learner_id: str = Depends(verify_token)):
         return {
             "response": final_response,
             "agent_used": agent_used,
-            "feedback": result.get("feedback")
+            "feedback": result.get("feedback"),
+            "context_summary": result.get("context_summary")
         }
         
     except Exception as e:
@@ -365,10 +368,7 @@ def get_progress(learner_id: str, token_learner_id: str = Depends(verify_token))
     avg_clarity = summary.get("summary", {}).get("avg_clarity_score", 0) * 10
     
     chart_data = [
-        {"week": "W1", "grammar": 50, "vocab": 55, "overall": 52},
-        {"week": "W2", "grammar": 65, "vocab": 60, "overall": 62},
-        {"week": "W3", "grammar": 70, "vocab": 75, "overall": 72},
-        {"week": "Current", "grammar": avg_grammar, "vocab": avg_vocab, "overall": avg_clarity}
+        {"week": "Current", "grammar": avg_grammar, "vocab": avg_vocab, "overall": round((avg_grammar + avg_vocab + avg_clarity) / 3, 1)}
     ]
     
     errors = [{"mistake": m, "count": 2} for m in mistakes.get("recurring_mistakes", [])]

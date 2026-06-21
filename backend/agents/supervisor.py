@@ -3,6 +3,8 @@
 import json
 import os
 import re
+from pydantic import BaseModel, Field
+from typing import Literal
 
 from agents.state import AgentState
 from agents.llm_config import get_llm, RECENT_MESSAGES_WINDOW
@@ -26,12 +28,12 @@ AVAILABLE AGENTS:
 ═══════════════════════════════════════════════
 ROUTING RULES (in priority order):
 ═══════════════════════════════════════════════
-1. User says bye, exit, stop, done, quit, goodbye, thank you, i have to go → end
+1. User says bye, exit, stop, quit, goodbye, i have to go → end
 2. NO profile OR assessment incomplete → learning_agent
 3. IF the user is currently in a session (e.g., '{current_session_type}') and is responding naturally to it, KEEP routing them to '{current_session_type}'. Do NOT switch agents.
 4. User explicitly submits text for correction, asks for feedback, check, or review → feedback_agent
-5. User explicitly asks HOW to do something in English (e.g., "how to write an email") → conversation_agent
-6. User asks to start an interview, meeting, presentation, roleplay, simulation → roleplay_agent
+5. User explicitly asks HOW to do something, asks for advice, or asks a general question (e.g., "what are the most common interview questions?", "explain X") → conversation_agent
+6. User explicitly asks to START a roleplay/simulation, OR says they are preparing for an upcoming interview/meeting and want to practice → roleplay_agent
 7. User asks about progress, goals, plan, level → learning_agent
 8. User wants conversation practice or discusses a general/tech topic → conversation_agent
 
@@ -62,9 +64,15 @@ Recent Messages (last {window_size}):
 User's latest message: "{user_input}"
 ═══════════════════════════════════════════════
 
-Respond with EXACTLY one of: learning_agent, conversation_agent, roleplay_agent, feedback_agent, end"""
+Respond based on the provided routing rules and context."""
 
-
+class RouterDecision(BaseModel):
+    next_agent: Literal["learning_agent", "conversation_agent", "roleplay_agent", "feedback_agent", "end"] = Field(
+        description="The exact name of the agent to route the user to next."
+    )
+    reason: str = Field(
+        description="A brief explanation of why this agent was chosen."
+    )
 
 def supervisor_node(state: AgentState) -> AgentState:
     """"""
@@ -84,9 +92,13 @@ def supervisor_node(state: AgentState) -> AgentState:
     # ─── Absolute Context Lock for Roleplay ──────────────────────────────────
     # Ensure the user NEVER exits a roleplay scenario until it's explicitly ended.
     if current_session == "roleplay_agent":
-        end_kws = ["bye", "goodbye", "exit", "stop", "quit", "done", "thanks", "thank you", "going to go", "have to go", "شكراً", "مع السلامة", "خلاص"]
+        end_kws = ["bye", "goodbye", "exit", "stop", "quit", "going to go", "have to go", "مع السلامة", "خلاص"]
         user_lower = user_input.lower().strip()
-        if any(kw in user_lower for kw in end_kws):
+        words = user_lower.split()
+        
+        # Only trigger hard-end if it's a very short phrase to avoid false positives in long answers
+        is_short_phrase = len(words) <= 6
+        if is_short_phrase and any(kw in user_lower for kw in end_kws):
             return {**state, "next_agent": "end", "routing_reason": "User ended roleplay explicitly"}
         else:
             return {**state, "next_agent": "roleplay_agent", "routing_reason": "Hard-locked in active roleplay session"}
@@ -131,15 +143,12 @@ def supervisor_node(state: AgentState) -> AgentState:
 
     try:
         llm = get_llm("supervisor")
-        response = llm.invoke(prompt)
+        structured_llm = llm.with_structured_output(RouterDecision)
+        decision = structured_llm.invoke(prompt)
 
-        agent_choice = _extract_agent_name(response)
+        agent_choice = decision.next_agent
+        routing_reason = decision.reason
 
-        if agent_choice:
-            routing_reason = f"LLM decision: {agent_choice}"
-        else:
-            agent_choice = _keyword_fallback(user_input, assessment_complete)
-            routing_reason = f"LLM unclear ('{response[:50]}'), keyword fallback: {agent_choice}"
 
     except Exception as e:
         agent_choice = _keyword_fallback(user_input, assessment_complete)
@@ -166,24 +175,7 @@ def route_to_agent(state: AgentState) -> str:
 
 
 
-def _extract_agent_name(response: str) -> str:
-    """"""
-    valid_agents = [
-        "learning_agent", "conversation_agent",
-        "roleplay_agent", "feedback_agent", "end"
-    ]
 
-    cleaned = response.strip().lower()
-
-    first_word = cleaned.split()[0] if cleaned else ""
-    if first_word in valid_agents:
-        return first_word
-
-    for agent in valid_agents:
-        if agent in cleaned:
-            return agent
-
-    return ""
 
 
 def _keyword_fallback(user_input: str, assessment_complete: bool) -> str:
@@ -191,8 +183,8 @@ def _keyword_fallback(user_input: str, assessment_complete: bool) -> str:
     user_lower = user_input.lower().strip()
 
     # End signals
-    end_keywords = ["bye", "goodbye", "exit", "stop", "quit", "done",
-                     "thanks", "thank you", "going to go", "have to go", "شكراً", "مع السلامة", "خلاص"]
+    end_keywords = ["bye", "goodbye", "exit", "stop", "quit",
+                     "going to go", "have to go", "مع السلامة", "خلاص"]
     if any(kw in user_lower for kw in end_keywords):
         return "end"
 
@@ -204,14 +196,16 @@ def _keyword_fallback(user_input: str, assessment_complete: bool) -> str:
         return "feedback_agent"
         
     # How-to signals (teaching) -> conversation_agent
-    howto_keywords = ["how to", "best structure", "how do i", "explain", "meaning of"]
+    howto_keywords = ["how to", "best structure", "how do i", "explain", "meaning of", "what are", "what the", "what is", "how many"]
     if any(kw in user_lower for kw in howto_keywords):
         return "conversation_agent"
 
     # Roleplay signals
-    roleplay_keywords = ["interview", "roleplay", "simulate", "pretend",
-                          "meeting", "presentation", "client call",
-                          "salary", "recruiter", "sprint", "scenario"]
+    roleplay_keywords = ["mock interview", "prepare for interview", "i have interview",
+                          "i have a meeting", "i have a call", "i have client",
+                          "roleplay", "simulate", "pretend", "practice interview",
+                          "client call", "salary discussion", "recruiter screening",
+                          "sprint meeting", "scenario"]
     if any(kw in user_lower for kw in roleplay_keywords):
         return "roleplay_agent"
 

@@ -3,6 +3,8 @@
 import os
 import json
 import re
+from pydantic import BaseModel, Field
+from typing import List
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.agents import AgentExecutor, create_react_agent
 # from langchain_classic.agents import AgentExecutor, create_react_agent
@@ -104,14 +106,17 @@ Conversation Summary (previous context):
 {context_summary}
 
 EVALUATION PROTOCOL:
-1. First, use search_grammar_rules to find relevant rules for any errors you notice
-2. If this is interview text, use search_interview_examples for comparison
-3. Then write your complete evaluation
+You handle TWO types of inputs:
+Type A: The user submits text for correction (e.g., "check this: X", "is this correct: X", or just typing a sentence).
+Type B: The user asks a question about English grammar, your previous feedback, or a language rule (e.g., "why did you correct this?", "explain past simple").
 
-OUTPUT FORMAT (use EXACTLY this structure — the system parses these headers):
+FOR TYPE A (Correction):
+1. Extract ONLY the target text that needs checking. IGNORE introductory phrases like "check my sentence:", "ok, I want you to review:", etc.
+2. Use search_grammar_rules to find relevant rules for any errors.
+3. Write your evaluation using EXACTLY this format (the system parses these headers):
 
 ## ORIGINAL_TEXT
-[quote the original text exactly]
+[quote ONLY the target text, ignoring conversational filler]
 
 ## CORRECTED_TEXT
 [the corrected version]
@@ -136,87 +141,28 @@ Score: XX/100
 
 ## EXCELLENT_VERSION
 [Show what a C1-level version would look like]
+
+FOR TYPE B (Question/Explanation):
+1. Use search_grammar_rules if needed to find the answer.
+2. Answer the user's question clearly, concisely, and with examples.
+3. DO NOT output the ## ORIGINAL_TEXT or ## SCORES headers. Just provide a helpful and conversational explanation.
 """),
-    ("human", "Text to evaluate: {input}"),
+    ("human", "{input}"),
     MessagesPlaceholder(variable_name="agent_scratchpad"),
 ])
 
 
 # ─── Score Parsing ──────────────────────────────────────────────────────────
 
-def _parse_scores(response: str) -> dict:
-    """"""
-    scores = {
-        "grammar_score": 0.0,
-        "vocabulary_score": 0.0,
-        "clarity_score": 0.0,
-        "tone_score": 0.0,
-        "job_readiness_score": 0.0,
-    }
-
-    patterns = {
-        "grammar_score": r"(?:Grammar|Grammar Accuracy|grammar)[^\d]*(\d+\.?\d*)(?:\s*(?:/|out of)?\s*10)?",
-        "vocabulary_score": r"(?:Vocabulary|Vocabulary Range|vocabulary)[^\d]*(\d+\.?\d*)(?:\s*(?:/|out of)?\s*10)?",
-        "clarity_score": r"(?:Clarity|Clarity & Structure|Clarity and Structure|clarity)[^\d]*(\d+\.?\d*)(?:\s*(?:/|out of)?\s*10)?",
-        "tone_score": r"(?:Tone|Professional Tone|tone)[^\d]*(\d+\.?\d*)(?:\s*(?:/|out of)?\s*10)?",
-        "job_readiness_score": r"(?:Job Readiness|JOB_READINESS|Score)[^\d]*(\d+\.?\d*)(?:\s*(?:/|out of)?\s*100)?",
-    }
-
-    for key, pattern in patterns.items():
-        match = re.search(pattern, response, re.IGNORECASE)
-        if match:
-            try:
-                scores[key] = float(match.group(1))
-            except ValueError:
-                pass
-
-    return scores
-
-
-def _parse_section(response: str, section: str) -> str:
-    """"""
-    # Allow #, ##, or ###, optional asterisks, and optional colon
-    pattern = rf"(?:#+|\*\*)\s*(?:{section})[:\*]*\s*\n(.*?)(?=\n(?:#+|\*\*)[A-Z]|\Z)"
-    match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
-    if match:
-        return match.group(1).strip()
-    return ""
-
-
-def _parse_corrections(response: str) -> list:
-    """"""
-    corrections_text = _parse_section(response, "CORRECTIONS")
-    if not corrections_text:
-        return []
-
-    corrections = []
-    for line in corrections_text.split("\n"):
-        line = line.strip()
-        if line.startswith("-") and "->" in line:
-            corrections.append(line[1:].strip())
-        elif line.startswith("-"):
-            corrections.append(line[1:].strip())
-
-    return corrections
-
-
-def _parse_suggestions(response: str) -> list:
-    """"""
-    suggestions_text = _parse_section(response, "SUGGESTIONS")
-    if not suggestions_text:
-        return []
-
-    suggestions = []
-    for line in suggestions_text.split("\n"):
-        line = line.strip()
-        if re.match(r"^\d+\.", line):
-            suggestions.append(re.sub(r"^\d+\.\s*", "", line))
-        elif line.startswith("-"):
-            suggestions.append(line[1:].strip())
-
-    return suggestions
-
-
+class FeedbackExtraction(BaseModel):
+    corrected_text: str = Field(description="The corrected version of the user's text.")
+    grammar_score: float = Field(description="Grammar Accuracy score from 0.0 to 10.0.")
+    vocabulary_score: float = Field(description="Vocabulary Range score from 0.0 to 10.0.")
+    clarity_score: float = Field(description="Clarity & Structure score from 0.0 to 10.0.")
+    tone_score: float = Field(description="Professional Tone score from 0.0 to 10.0.")
+    job_readiness_score: float = Field(description="Job Readiness score from 0.0 to 100.0.")
+    corrections: List[str] = Field(description="List of specific corrections made.")
+    suggestions: List[str] = Field(description="List of actionable suggestions for improvement.")
 
 def feedback_agent_node(state: AgentState) -> AgentState:
     """"""
@@ -263,37 +209,65 @@ def feedback_agent_node(state: AgentState) -> AgentState:
         agent_response = result.get("output", "I could not evaluate this text. Please try again.")
 
         # ─── Structured Parsing ─────────────────────────────────────────
-        scores = _parse_scores(agent_response)
-        corrected_text = _parse_section(agent_response, "CORRECTED_TEXT")
-        corrections = _parse_corrections(agent_response)
-        suggestions = _parse_suggestions(agent_response)
-
-        feedback_result: FeedbackResult = {
-            "original_text": user_input,
-            "corrected_text": corrected_text,
-            "grammar_score": scores["grammar_score"],
-            "vocabulary_score": scores["vocabulary_score"],
-            "clarity_score": scores["clarity_score"],
-            "tone_score": scores["tone_score"],
-            "job_readiness_score": scores["job_readiness_score"],
-            "corrections": corrections,
-            "suggestions": suggestions,
-            "rag_sources": ["knowledge_base/grammar_rules.md"],
-        }
-
-        neat_response = f"🎯 **Excellent effort! Here is your technical evaluation:**\n\n"
-        neat_response += f"**Corrected Text:**\n{corrected_text}\n\n**Corrections:**\n"
-        for c in corrections:
-            neat_response += f"- {c}\n"
-        
-        neat_response += f"\n📊 **Scores:**\n- Grammar: {scores['grammar_score']}/10\n- Vocabulary: {scores['vocabulary_score']}/10\n- Clarity: {scores['clarity_score']}/10\n- Professionalism: {scores['tone_score']}/10\n"
-        
-        if suggestions:
-            neat_response += f"\n💡 **Pro Tips for Improvement:**\n"
-            for s in suggestions:
-                neat_response += f"- {s}\n"
+        if "## CORRECTED_TEXT" in agent_response or "## ORIGINAL_TEXT" in agent_response:
+            try:
+                extractor = llm.with_structured_output(FeedbackExtraction)
+                extracted: FeedbackExtraction = extractor.invoke(f"Extract the feedback data from the following evaluation:\n\n{agent_response}")
                 
-        agent_response = neat_response
+                feedback_result: FeedbackResult = {
+                    "original_text": user_input,
+                    "corrected_text": extracted.corrected_text,
+                    "grammar_score": extracted.grammar_score,
+                    "vocabulary_score": extracted.vocabulary_score,
+                    "clarity_score": extracted.clarity_score,
+                    "tone_score": extracted.tone_score,
+                    "job_readiness_score": extracted.job_readiness_score,
+                    "corrections": extracted.corrections,
+                    "suggestions": extracted.suggestions,
+                    "rag_sources": ["knowledge_base/grammar_rules.md"],
+                }
+            except Exception as e:
+                print(f"Error extracting feedback structured output: {e}")
+                feedback_result = None
+
+            if feedback_result:
+                # Explicitly save feedback result to database
+                learner_id = profile.get("learner_id", "unknown") if profile else "unknown"
+                session_id = state.get("session_id", "unknown_session")
+                try:
+                    import json
+                    save_feedback_result.invoke({
+                        "learner_id": learner_id,
+                        "session_id": session_id,
+                        "original_text": feedback_result["original_text"],
+                        "corrected_text": feedback_result["corrected_text"],
+                        "grammar_score": feedback_result["grammar_score"],
+                        "vocabulary_score": feedback_result["vocabulary_score"],
+                        "clarity_score": feedback_result["clarity_score"],
+                        "tone_score": feedback_result["tone_score"],
+                        "job_readiness_score": feedback_result["job_readiness_score"],
+                        "mistakes": json.dumps(feedback_result["corrections"])
+                    })
+                except Exception as db_e:
+                    print(f"Error saving feedback to db: {db_e}")
+
+                neat_response = f"🎯 **Excellent effort! Here is your technical evaluation:**\n\n"
+                neat_response += f"**Corrected Text:**\n{extracted.corrected_text}\n\n**Corrections:**\n"
+                for c in extracted.corrections:
+                    neat_response += f"- {c}\n"
+                
+                neat_response += f"\n📊 **Scores:**\n- Grammar: {extracted.grammar_score}/10\n- Vocabulary: {extracted.vocabulary_score}/10\n- Clarity: {extracted.clarity_score}/10\n- Professionalism: {extracted.tone_score}/10\n- 🎯 Job Readiness: {extracted.job_readiness_score}/100\n"
+                
+                if extracted.suggestions:
+                    neat_response += f"\n💡 **Suggestions:**\n"
+                    for s in extracted.suggestions:
+                        neat_response += f"- {s}\n"
+                        
+                agent_response = neat_response
+            
+        else:
+            # It's a conversational answer (Type B)
+            feedback_result = None
 
     except Exception as e:
         import traceback

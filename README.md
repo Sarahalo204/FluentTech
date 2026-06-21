@@ -4,7 +4,7 @@
 
 ## 📌 Overview
 
-**FluentTech** is an agentic AI-powered English learning coach designed specifically for Saudi students and early-career tech professionals. Unlike generic language learning apps, EduLingo focuses on **career-oriented, practical English** — helping learners prepare for technical job interviews, workplace communication, and professional presentations.
+**FluentTech** is an agentic AI-powered English learning coach designed specifically for Saudi students and early-career tech professionals. Unlike generic language learning apps, FluentTech focuses on **career-oriented, practical English** — helping learners prepare for technical job interviews, workplace communication, and professional presentations.
 
 The system leverages a **multi-agent architecture** built with LangGraph, where four specialized AI agents collaborate to deliver a personalized, adaptive learning experience that remembers the learner's goals, tracks their progress, and adjusts difficulty over time.
 
@@ -20,7 +20,7 @@ Many English learning tools fail tech learners because they are either too gener
 - No simulation of real career scenarios like technical interviews or workplace meetings
 - Learning goals that are never tracked or revisited
 
-EduLingo solves all of this through a conversational AI coach that remembers, adapts, and grows with the learner.
+FluentTech solves all of this through a conversational AI coach that remembers, adapts, and grows with the learner.
 
 ---
 
@@ -120,7 +120,7 @@ Delivers instant, detailed feedback on learner responses. Powered by a RAG syste
 
 ## 🧠 Memory System
 
-EduLingo uses a two-layer memory architecture to create a truly personalized experience:
+FluentTech uses a two-layer memory architecture to create a truly personalized experience:
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -169,7 +169,7 @@ The Retrieval-Augmented Generation system grounds the agents' responses in struc
 | Layer | Technology |
 |-------|------------|
 | **Agent Framework** | LangGraph + LangChain |
-| **LLM** | OpenAI GPT-4o or mistralai/Mistral-7B-Instruct-v0.3|
+| **LLM** | Groq Llama-3 (8B/70B) or OpenAI GPT-4o |
 | **Backend API** | FastAPI |
 | **Database** | PostgreSQL |
 | **Vector Store** | Supabase pgvector |
@@ -267,21 +267,17 @@ The system uses the Common European Framework of Reference for Languages:
 ## 📡 API Reference
 
 ```
-POST   /api/auth/register          Register a new learner
-POST   /api/auth/login             Login and receive JWT token
+POST   /auth/register              Register a new learner
+POST   /auth/login                 Login and receive JWT token
+POST   /auth/update_level          Update learner CEFR level
 
-GET    /api/learner/{id}/profile   Get full learner profile
-PUT    /api/learner/{id}/profile   Update profile or goals
+GET    /api/profile/{id}           Get full learner profile
+PUT    /api/profile/{id}           Update profile or goals
 
-POST   /api/session/start          Start a new learning session
-POST   /api/session/message        Send a message to the active agent
-POST   /api/session/end            End session and save progress
+POST   /api/chat                   Send message and trigger agent graph
 
-GET    /api/progress/{id}/summary  Get weekly progress summary
+GET    /api/progress/{id}          Get weekly progress summary
 GET    /api/progress/{id}/mistakes Get recurring mistakes report
-
-POST   /api/exercise/generate      Generate a personalized exercise
-POST   /api/feedback/analyze       Analyze text and return evaluation
 
 GET    /api/health                 Health check
 ```

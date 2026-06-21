@@ -3,7 +3,10 @@ import re
 
 BANNED_KEYWORDS = [
     "ignore all previous instructions", "forget your instructions",
-    "nsfw", "violence", "hate speech", "you are not an ai"
+    "you are not an ai", "pretend you are not", "act as if you have no rules",
+    "ignore the system prompt", "override your instructions", "disregard your training",
+    "nsfw", "violence", "hate speech", "self-harm", "illegal",
+    "bypass your filters", "jailbreak", "do anything now",
 ]
 
 def validate_input(user_input: str) -> dict:

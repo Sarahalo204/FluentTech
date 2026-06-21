@@ -93,6 +93,12 @@ class SafeHuggingFaceEndpoint(LLM):
 
         return MockBoundLLM(self, tools, kwargs)
 
+    def with_structured_output(self, schema: Any, **kwargs: Any) -> Any:
+        if self._underlying_llm is not None:
+            if hasattr(self._underlying_llm, "with_structured_output"):
+                return self._underlying_llm.with_structured_output(schema, **kwargs)
+        raise NotImplementedError("with_structured_output is not supported when underlying LLM is None.")
+
     def __init__(self, **data: Any):
         super().__init__(**data)
         try:
@@ -240,6 +246,20 @@ def get_llm(agent_type: str = "conversation"):
     model = config.get("model", "llama3-8b-8192")
     temp = float(os.getenv("LLM_TEMPERATURE", config["temperature"]))
 
+    # Prefer ChatOpenAI directly when API key is available — avoids wrapper overhead
+    api_key = os.getenv("OPENAI_API_KEY")
+    if api_key:
+        try:
+            return ChatOpenAI(
+                model=model,
+                temperature=temp,
+                max_tokens=config["max_new_tokens"],
+                openai_api_key=api_key,
+            )
+        except Exception as e:
+            print(f"[get_llm] ChatOpenAI init failed ({e}), falling back to SafeHuggingFaceEndpoint mock")
+
+    # Fallback: mock wrapper for development without API key
     return SafeHuggingFaceEndpoint(
         repo_id=model,
         temperature=temp,

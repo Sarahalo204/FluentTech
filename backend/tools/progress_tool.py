@@ -38,22 +38,28 @@ def log_session(
         now = datetime.utcnow().isoformat()
 
         # Log session
+        import uuid
         session_data = {
+            "id": str(uuid.uuid5(uuid.NAMESPACE_OID, session_id)),
             "session_id": session_id,
             "learner_id": learner_id,
             "session_type": session_type,
             "duration_mins": duration_mins,
             "created_at": now
         }
-        supabase.table("sessions").insert(session_data).execute()
+        
+        # Check if session already exists to avoid incrementing count multiple times
+        existing_session = supabase.table("sessions").select("id").eq("session_id", session_id).execute()
+        is_new_session = len(existing_session.data) == 0
+        
+        supabase.table("sessions").upsert(session_data).execute()
 
-        # Increment sessions_completed in profile
-        profile_res = supabase.table("learner_profiles").select("sessions_completed").eq("learner_id", learner_id).execute()
-        if profile_res.data:
-            current_count = profile_res.data[0].get("sessions_completed", 0)
-            supabase.table("learner_profiles").update({
-                "sessions_completed": current_count + 1
-            }).eq("learner_id", learner_id).execute()
+        # Increment sessions_completed in profile only if it's a new session
+        if is_new_session:
+            profile_res = supabase.table("learner_profiles").select("sessions_completed").eq("learner_id", learner_id).execute()
+            if profile_res.data:
+                current_count = profile_res.data[0].get("sessions_completed", 0)
+                supabase.table("learner_profiles").update({"sessions_completed": current_count + 1}).eq("learner_id", learner_id).execute()
 
         return json.dumps({
             "status": "success",
@@ -84,8 +90,10 @@ def save_feedback_result(
         parsed_mistakes = []
 
     try:
+        import uuid
         supabase = get_supabase()
         data = {
+            "id": str(uuid.uuid4()),
             "learner_id": learner_id,
             "session_id": session_id,
             "grammar_score": grammar_score,

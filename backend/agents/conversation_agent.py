@@ -97,6 +97,10 @@ TOPIC_KEYWORDS = {
         "network", "tcp", "ip", "dns", "http", "https", "routing",
         "latency", "bandwidth", "vpn", "proxy", "load balancer"
     ],
+    "Digital Marketing": [
+        "marketing", "seo", "campaign", "social media", "ads", "conversion",
+        "roi", "analytics", "funnel", "customer acquisition", "strategy"
+    ],
 }
 
 
@@ -154,6 +158,29 @@ def extract_current_topic(messages: list) -> str:
         m.get("content", "") for m in messages[-5:]
     ]).lower()
 
+    # Try semantic classification first
+    try:
+        from pydantic import BaseModel, Field
+        from typing import Literal
+        
+        class TopicClassification(BaseModel):
+            topic: Literal[
+                "AI / Machine Learning", "Cloud Computing", "Software Engineering",
+                "Data Science", "Cybersecurity", "Product Management",
+                "Job & Career", "Web Development", "Mobile App Development",
+                "Database Administration", "Networking", "Digital Marketing",
+                "general tech conversation"
+            ] = Field(description="The technical topic that best matches the conversation.")
+
+        llm = get_llm("summarizer")
+        if hasattr(llm, "with_structured_output"):
+            classifier = llm.with_structured_output(TopicClassification)
+            result = classifier.invoke(f"Classify the main topic of this conversation excerpt:\n{recent_text[:500]}")
+            return result.topic
+    except Exception:
+        pass  # Fall through to keyword matching
+
+    # Keyword fallback
     for topic, keywords in TOPIC_KEYWORDS.items():
         if any(kw in recent_text for kw in keywords):
             return topic
@@ -192,7 +219,7 @@ def conversation_agent_node(state: AgentState) -> AgentState:
     language_rule = LANGUAGE_RULES_BY_LEVEL.get(current_level, LANGUAGE_RULES_BY_LEVEL["B1"])
 
     conversation_history = "\n".join([
-        f"  {m['role'].upper()}: {m['content'][:200]}"
+        f"  {m['role'].upper()}: {m['content'][:400]}"
         for m in messages[-5:]
     ])
 

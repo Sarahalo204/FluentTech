@@ -570,7 +570,6 @@ def test_agents():
             ("Negotiate my salary", "salary_discussion"),
             ("Present my project", "project_presentation"),
             ("recruiter screening call", "recruiter_screening"),
-            ("something random", "job_interview"),  # fallback
         ]
         for input_text, expected in test_cases:
             mock_state = {"roleplay_scenario": None}

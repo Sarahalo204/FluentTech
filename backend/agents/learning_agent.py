@@ -54,9 +54,6 @@ Conversation Summary (previous context):
 
 {assessment_protocol}
 
-CRITICAL ASSESSMENT RULE:
-If the user's message is a valid attempt at answering your assessment question, you MUST include the exact string "[VALID_ANSWER]" somewhere in your response. If they are just asking a clarifying question, chatting off-topic, or refusing to answer, DO NOT include this marker.
-
 WEEKLY PLAN FORMAT (when user asks for a plan):
 Based on the learner's weak areas and recurring mistakes, you MUST use the provided tools (e.g., update_learning_goals, add_weak_area) BEFORE generating the plan. Then, output the plan using beautiful, structured Markdown:
 
@@ -125,6 +122,12 @@ Progressively increase difficulty. Focus on grammar, vocabulary, and fluency.
 If their last answer was strong, ask a B2/C1 question.
 If it was weak, ask a B1/A2 question.
 
+Example questions by level:
+- A2: "What did you do at work yesterday?"
+- B1: "Can you explain how you fixed a bug recently?"
+- B2: "What are the advantages and disadvantages of working remotely?"
+- C1/C2: "How do you foresee artificial intelligence impacting the future of software engineering, and what ethical concerns does it raise?"
+
 {ASSESSMENT_RUBRIC}"""
         else:
             assessment_protocol = f"""ASSESSMENT PROTOCOL — FINAL STAGE (Level Assignment):
@@ -166,13 +169,19 @@ You've asked {questions_asked} questions. Now:
         agent_response = result.get("output", "I'm sorry, I couldn't process your request.")
 
         if not assessment_complete:
-            if "[VALID_ANSWER]" in agent_response:
-                questions_asked += 1
-                if questions_asked >= MAX_ASSESSMENT_QUESTIONS:
-                    assessment_complete = True
+            from pydantic import BaseModel, Field
+            class AnswerValidity(BaseModel):
+                is_valid: bool = Field(description="True if the user's input was a valid attempt at answering the assessment question, False if they just asked a clarifying question or went off-topic.")
             
-        # Clean up marker before showing to user
-        agent_response = agent_response.replace("[VALID_ANSWER]", "").strip()
+            try:
+                checker = llm.with_structured_output(AnswerValidity)
+                validity = checker.invoke(f"User input: '{user_input}'. Agent response: '{agent_response}'. Did the user provide a valid answer to the assessment question?")
+                if validity.is_valid:
+                    questions_asked += 1
+                    if questions_asked >= MAX_ASSESSMENT_QUESTIONS:
+                        assessment_complete = True
+            except Exception as e:
+                print(f"Error checking answer validity: {e}")
 
     except Exception as e:
         agent_response = (
