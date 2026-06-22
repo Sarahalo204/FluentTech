@@ -18,6 +18,8 @@ function ProfilePage() {
   const [completedSessions, setCompletedSessions] = useState(0);
   const totalSessions = 5;
 
+  const [evaluationScore, setEvaluationScore] = useState(0);
+
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -37,12 +39,15 @@ function ProfilePage() {
         .then(data => {
           setCompletedSessions(data.sessionsCompleted || 0);
           setStreakDays(data.streak_days || 0);
+          if (data.chartData && data.chartData.length > 0) {
+            setEvaluationScore(data.chartData[0].overall || 0);
+          }
         })
         .catch(err => console.error('Error fetching progress:', err));
     }
   }, [user]);
 
-  const progressValue = useMemo(() => Math.min(100, Math.round((completedSessions / totalSessions) * 100)) || 0, [completedSessions, totalSessions]);
+  const progressValue = useMemo(() => Math.min(100, Math.round(evaluationScore)) || 0, [evaluationScore]);
 
   const toggleTopic = (topic) => {
     setSelectedTopics((current) =>
@@ -125,8 +130,8 @@ function ProfilePage() {
           <div className="rounded-3xl border border-slate-200/80 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950/80 p-6 shadow-sm shadow-slate-200/20 dark:shadow-none">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm text-slate-600 dark:text-slate-400">Weekly goal progress</p>
-                <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">{completedSessions}/{totalSessions} sessions</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">Average Evaluation Score</p>
+                <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">{progressValue}/100</p>
               </div>
               <div className="relative h-28 w-28">
                 <svg className="rotate-[-90deg]" viewBox="0 0 100 100">
@@ -135,7 +140,7 @@ function ProfilePage() {
                     cx="50"
                     cy="50"
                     r="44"
-                    className="stroke-sky-500 fill-transparent stroke-[10]"
+                    className="stroke-emerald-500 fill-transparent stroke-[10]"
                     strokeDasharray="276.46"
                     strokeDashoffset={`${276.46 - (276.46 * progressValue) / 100}`}
                     strokeLinecap="round"
@@ -147,7 +152,7 @@ function ProfilePage() {
               </div>
             </div>
             <div className="mt-6 rounded-3xl bg-white dark:bg-slate-900/90 border border-slate-200/80 dark:border-transparent p-4 text-sm text-slate-600 dark:text-slate-300 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-none">
-              Keep your learning streak going to reach your weekly goal.
+              This score represents your average performance across recent evaluations.
             </div>
           </div>
         </div>

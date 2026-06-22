@@ -74,7 +74,7 @@ async def generate_tts_get(text: str, token: Optional[str] = None):
 
     try:
         client = openai.OpenAI()
-        response = client.audio.speech.with_streaming_response.create(
+        response = client.audio.speech.create(
             model="tts-1",
             voice="alloy",
             input=text

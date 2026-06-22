@@ -172,7 +172,7 @@ The Retrieval-Augmented Generation system grounds the agents' responses in struc
 | Layer | Technology |
 |-------|------------|
 | **Agent Framework** | LangGraph + LangChain |
-| **LLM** | Groq Llama-3 (8B/70B) or OpenAI GPT-4o |
+| **LLM** | OpenAI |
 | **Backend API** | FastAPI |
 | **Database** | PostgreSQL |
 | **Vector Store** | Supabase pgvector |
@@ -241,14 +241,35 @@ SUPABASE_KEY=your_supabase_api_key
 JWT_SECRET=your_secret_key_for_auth
 ```
 
-### 3. Run with Docker
+### 3. Running Locally (Without Docker)
+
+**Backend:**
+```bash
+cd backend
+pip install -r requirements.txt
+python server.py
+```
+
+**Frontend:**
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### 4. Running with Docker (Alternative)
 ```bash
 docker-compose up --build
 ```
 
-### 4. Ingest the knowledge base
+### 5. Ingest the knowledge base
 ```bash
+# If using Docker:
 docker exec edulingo-backend python rag/ingest.py
+
+# If running locally:
+cd backend
+python rag/ingest.py
 ```
 ---
 
@@ -295,5 +316,13 @@ GET    /api/health                 Health check
 | **Early-Career Developer** | Practice technical communication in English |
 | **Bootcamp Graduate** | Build confidence for workplace English |
 | **Career Coach / Instructor** | Monitor learner progress and engagement |
+
+---
+
+## ⚠️ Limitations & Known Issues
+
+- **Microphone Support:** The Speech-to-Text (STT) functionality relies on the browser's native Web Speech API. It may not work optimally on all browsers (best supported on Google Chrome).
+- **Latency:** While TTS streaming is implemented to reduce audio lag, very complex grammar evaluations by the Feedback Agent might still take a few seconds due to the deep multi-step LLM analysis.
+- **Audio Autoplay:** Some mobile browsers might block the TTS audio from autoplaying until the user explicitly interacts with the page.
 
 ---
