@@ -1,7 +1,7 @@
 # FluentTech — AI English Learning Agent
 ### *A personalized English coaching system built for Saudi tech learners*
 
-🚀 **Live Demo:** [https://fluent-tech.vercel.app/chat](https://fluent-tech.vercel.app/chat)
+🚀 **Live Demo:** [https://fluent-tech.vercel.app/](https://fluent-tech.vercel.app/)
 
 ---
 
