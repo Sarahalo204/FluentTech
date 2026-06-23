@@ -50,7 +50,7 @@ def validate_input(user_input: str) -> dict:
         llm = get_llm("supervisor") # Fast model
         structured_llm = llm.with_structured_output(GuardrailClassification)
         result = structured_llm.invoke(
-            f"You are a strict guardrail for an AI English learning coach. Your job is to reject any requests that are outside the scope of English learning, such as writing programming code (e.g., Python, JS), solving math equations, or acting as a general assistant.\n\nUser Input: '{user_input}'\n\nClassify this input."
+            f"You are a guardrail for an English learning coach designed for Tech Professionals. It is COMPLETELY SAFE AND EXPECTED for users to discuss Software Engineering, AI, Computer Science, and job interviews in English. You must ONLY reject requests if the user explicitly asks you to WRITE raw programming code, solve math equations, or act as a general AI assistant outside the scope of conversation.\n\nUser Input: '{user_input}'\n\nClassify this input."
         )
         if not result.is_safe:
             return {

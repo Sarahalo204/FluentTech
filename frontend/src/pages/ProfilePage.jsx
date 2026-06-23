@@ -20,6 +20,8 @@ function ProfilePage() {
 
   const [evaluationScore, setEvaluationScore] = useState(0);
 
+  const [currentLevel, setCurrentLevel] = useState('');
+
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -29,6 +31,7 @@ function ProfilePage() {
         .then(profile => {
           setName(profile.name || '');
           setTargetLevel(profile.target_level || 'B2');
+          setCurrentLevel(profile.current_level || '');
           setSelectedTopics(profile.preferred_topics || []);
           setLearningGoals(profile.learning_goals || []);
         })
@@ -110,7 +113,7 @@ function ProfilePage() {
               <div className="block space-y-2 text-sm text-slate-700 dark:text-slate-200">
                 Current Assessed Level
                 <div className="w-full rounded-3xl border border-slate-200/80 bg-slate-100/50 dark:border-slate-700 dark:bg-slate-900/40 px-4 py-3 text-sm font-semibold text-sky-600 dark:text-sky-400 outline-none cursor-not-allowed shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-none">
-                  {user?.cefr_level || 'A1'}
+                  {currentLevel || user?.cefr_level || 'A1'}
                 </div>
               </div>
 
